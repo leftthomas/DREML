@@ -2,9 +2,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Network(nn.Module):
+class Model(nn.Module):
     def __init__(self):
-        super(Network, self).__init__()
+        super(Model, self).__init__()
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=9, out_channels=32, kernel_size=(1, 9)),
             nn.ReLU(),

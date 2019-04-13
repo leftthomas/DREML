@@ -6,11 +6,11 @@ import torch.nn as nn
 import torch.optim as optim
 import torchnet as tnt
 from torchnet.engine import Engine
-from torchnet.logger import VisdomPlotLogger, VisdomLogger
+from torchnet.logger import VisdomPlotLogger
 from tqdm import tqdm
 
 import utils
-from model import Network
+from model import Model
 
 
 def processor(sample):
@@ -87,7 +87,7 @@ if __name__ == '__main__':
     results = {'train_loss': [], 'train_accuracy': [], 'test_loss': [], 'test_accuracy': []}
 
     train_loader, test_loader = utils.load_data(batch_size=BATCH_SIZE)
-    model = Network().to(DEVICE)
+    model = Model().to(DEVICE)
     loss_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(params=model.parameters())
     print("# parameters:", sum(param.numel() for param in model.parameters()))
