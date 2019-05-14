@@ -1,5 +1,5 @@
-# CCN
-A PyTorch implementation of Convolutional Capsule Network based on the paper [Convolutional Capsule Network for Human Matting]().
+# DCN
+A PyTorch implementation of Diverse Capsule Network based on the paper [Diverse Capsule Network for Image Retrieval]().
 
 ## Requirements
 - [Anaconda](https://www.anaconda.com/download/)
