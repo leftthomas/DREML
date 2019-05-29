@@ -44,6 +44,9 @@ def download_image(key_urls):
     except:
         print('Warning: Failed to save image %s' % filename)
         return 1
+
+    print('Success: Image %s is download.' % filename)
+
     return 0
 
 
