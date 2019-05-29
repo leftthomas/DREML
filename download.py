@@ -5,51 +5,46 @@
 import argparse
 import multiprocessing
 import os
-from io import StringIO
+from io import BytesIO
 from urllib.request import urlopen
 
 import pandas as pd
 from PIL import Image
 
 
-def parse_data(data_file_name):
-    csv_reader = pd.read_csv(data_file_name)
-    keys, urls = csv_reader['id'].to_list(), csv_reader['url'].to_list()
-    return keys, urls
-
-
 def download_image(key_urls):
-    key, url = key_urls[0], key_urls[1]
+    key, url = key_urls
     filename = os.path.join(out_dir, '%s.jpg' % key)
 
     if os.path.exists(filename):
         print('Image %s already exists. Skipping download.' % filename)
-        return
+        return 0
 
     try:
         response = urlopen(url)
         image_data = response.read()
     except:
         print('Warning: Could not download image %s from %s' % (key, url))
-        return
+        return 1
 
     try:
-        pil_image = Image.open(StringIO(image_data))
+        pil_image = Image.open(BytesIO(image_data))
     except:
         print('Warning: Failed to parse image %s' % key)
-        return
+        return 1
 
     try:
         pil_image_rgb = pil_image.convert('RGB')
     except:
         print('Warning: Failed to convert image %s to RGB' % key)
-        return
+        return 1
 
     try:
         pil_image_rgb.save(filename, format='JPEG', quality=90)
     except:
         print('Warning: Failed to save image %s' % filename)
-        return
+        return 1
+    return 0
 
 
 if __name__ == '__main__':
@@ -64,6 +59,7 @@ if __name__ == '__main__':
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
-    keys, urls = parse_data(data_file)
+    csv_reader = pd.read_csv(data_file)
+    kargs = [(k, u) for k, u in zip(csv_reader.id.tolist(), csv_reader.url.tolist())]
     pool = multiprocessing.Pool(processes=50)
-    pool.map(download_image, [keys, urls])
+    pool.map(download_image, kargs)
