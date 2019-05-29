@@ -3,25 +3,23 @@
 # resume a partially completed download. All images will be saved in the JPG
 # format with 90% compression quality.
 import argparse
-import csv
 import multiprocessing
 import os
 from io import StringIO
 from urllib.request import urlopen
 
+import pandas as pd
 from PIL import Image
 
 
 def parse_data(data_file_name):
-    csv_file = open(data_file_name, 'r')
-    csv_reader = csv.reader(csv_file)
-    key_urls = [line[:2] for line in csv_reader]
-    # chop off header
-    return key_urls[1:]
+    csv_reader = pd.read_csv(data_file_name)
+    keys, urls = csv_reader['id'].to_list(), csv_reader['url'].to_list()
+    return keys, urls
 
 
 def download_image(key_urls):
-    (key, url) = key_urls
+    key, url = key_urls[0], key_urls[1]
     filename = os.path.join(out_dir, '%s.jpg' % key)
 
     if os.path.exists(filename):
@@ -66,6 +64,6 @@ if __name__ == '__main__':
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
-    key_url_list = parse_data(data_file)
+    keys, urls = parse_data(data_file)
     pool = multiprocessing.Pool(processes=50)
-    pool.map(download_image, key_url_list)
+    pool.map(download_image, [keys, urls])
