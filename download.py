@@ -3,13 +3,27 @@
 # resume a partially completed download. All images will be saved in the JPG
 # format with 90% compression quality.
 import argparse
-import multiprocessing
+import multiprocessing.pool
 import os
 from io import BytesIO
 from urllib.request import urlopen
 
 import pandas as pd
 from PIL import Image
+
+
+class NoDeamonProcess(multiprocessing.Process):
+    def _get_deamon(self):
+        return False
+
+    def _set_daemon(self):
+        pass
+
+    daemon = property(_get_deamon, _set_daemon)
+
+
+class MyPool(multiprocessing.pool.Pool):
+    process = NoDeamonProcess
 
 
 def download_image(key_urls):
@@ -64,5 +78,5 @@ if __name__ == '__main__':
 
     csv_reader = pd.read_csv(data_file)
     kargs = [(k, u) for k, u in zip(csv_reader.id.tolist(), csv_reader.url.tolist())]
-    pool = multiprocessing.Pool(processes=50)
+    pool = MyPool(4)
     pool.map(download_image, kargs)
