@@ -17,7 +17,7 @@ from joblib import delayed
 def download_image(key, url):
     filename = '{}/{}.jpg'.format(out_dir, key)
     if os.path.exists(filename):
-        print('Image-Name: %-16s Status: %-16s' % (os.path.basename(filename), 'Exists.'))
+        print('Image-ID: %-16s Status: %-16s' % (key, 'Already Exists.'))
         return 0
 
     try:
@@ -26,28 +26,28 @@ def download_image(key, url):
         response = urlopen(request)
         image_data = response.read()
     except Exception as e:
-        print('Image-Name: %-16s Status: %-16s Reason: %-16s' % (os.path.basename(filename), 'Error', '{}.'.format(e)))
+        print('Image-ID: %-16s Status: %-16s Reason: %-16s' % (key, 'Request Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image = Image.open(BytesIO(image_data))
     except Exception as e:
-        print('Image-Name: %-16s Status: %-16s Reason: %-16s' % (os.path.basename(filename), 'Error', '{}.'.format(e)))
+        print('Image-ID: %-16s Status: %-16s Reason: %-16s' % (key, 'Open Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image_rgb = pil_image.convert('RGB')
     except Exception as e:
-        print('Image-Name: %-16s Status: %-16s Reason: %-16s' % (os.path.basename(filename), 'Error', '{}.'.format(e)))
+        print('Image-ID: %-16s Status: %-16s Reason: %-16s' % (key, 'Convert Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image_rgb.save(filename, format='JPEG', quality=90)
     except Exception as e:
-        print('Image-Name: %-16s Status: %-16s Reason: %-16s' % (os.path.basename(filename), 'Error', '{}.'.format(e)))
+        print('Image-ID: %-16s Status: %-16s Reason: %-16s' % (key, 'Save Error', '{}.'.format(e)))
         return 1
 
-    print('Image-Name: %-16s Status: %-16s' % (os.path.basename(filename), 'Success.'))
+    print('Image-ID: %-16s Status: %-16s' % (key, 'Success Saved.'))
     return 0
 
 
@@ -77,4 +77,4 @@ if __name__ == '__main__':
         except IOError:
             # damaged
             os.remove('{}/{}'.format(out_dir, image_name))
-            print('Image-Name: %-16s Status: %-16s' % (image_name, 'Corrupted.'))
+            print('Image-Name: %-16s Status: %-16s' % (image_name, 'Have Corrupted.'))
