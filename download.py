@@ -5,6 +5,7 @@
 import argparse
 import os
 from io import BytesIO
+from urllib.request import Request
 from urllib.request import urlopen
 
 import pandas as pd
@@ -20,7 +21,8 @@ def download_image(key, url):
         return 0
 
     try:
-        response = urlopen(url)
+        request = Request(url)
+        response = urlopen(request)
         image_data = response.read()
     except:
         print('Warning: Could not download image {} from {}.'.format(key, url))
