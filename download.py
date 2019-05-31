@@ -14,10 +14,10 @@ from joblib import Parallel
 from joblib import delayed
 
 
-def download_image(key, url):
+def download_image(index, key, url):
     filename = '{}/{}.jpg'.format(out_dir, key)
     if os.path.exists(filename):
-        print('Image-ID: %-20s Status: %-20s' % (key, 'Already Exists.'))
+        print('Index: %-20s ID: %-20s Status: %-20s' % (index, key, 'Already Exists.'))
         return 0
 
     try:
@@ -26,28 +26,28 @@ def download_image(key, url):
         response = urlopen(request)
         image_data = response.read()
     except Exception as e:
-        print('Image-ID: %-20s Status: %-20s Reason: %-20s' % (key, 'Request Error', '{}.'.format(e)))
+        print('Index: %-20s ID: %-20s Status: %-20s Reason: %-20s' % (index, key, 'Request Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image = Image.open(BytesIO(image_data))
     except Exception as e:
-        print('Image-ID: %-20s Status: %-20s Reason: %-20s' % (key, 'Open Error', '{}.'.format(e)))
+        print('Index: %-20s ID: %-20s Status: %-20s Reason: %-20s' % (index, key, 'Open Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image_rgb = pil_image.convert('RGB')
     except Exception as e:
-        print('Image-ID: %-20s Status: %-20s Reason: %-20s' % (key, 'Convert Error', '{}.'.format(e)))
+        print('Index: %-20s ID: %-20s Status: %-20s Reason: %-20s' % (index, key, 'Convert Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image_rgb.save(filename, format='JPEG', quality=90)
     except Exception as e:
-        print('Image-ID: %-20s Status: %-20s Reason: %-20s' % (key, 'Save Error', '{}.'.format(e)))
+        print('Index: %-20s ID: %-20s Status: %-20s Reason: %-20s' % (index, key, 'Save Error', '{}.'.format(e)))
         return 1
 
-    print('Image-ID: %-20s Status: %-20s' % (key, 'Success Saved.'))
+    print('Index: %-20s ID: %-20s Status: %-20s' % (index, key, 'Success Saved.'))
     return 0
 
 
@@ -65,8 +65,11 @@ if __name__ == '__main__':
         os.mkdir(out_dir)
 
     csv_reader = pd.read_csv(data_file)
+    num_data = len(csv_reader)
     print('Download {} part of Google Landmarks dataset'.format(opt.data_type))
-    Parallel(n_jobs=opt.n_jobs)(delayed(download_image)(row['id'], row['url']) for i, row in csv_reader.iterrows())
+    Parallel(n_jobs=opt.n_jobs)(
+        delayed(download_image)('{}/{}'.format(str(i + 1), str(num_data)), row['id'], row['url']) for i, row in
+        csv_reader.iterrows())
     # clean the corrupted images
     print('Check {} part of Google Landmarks dataset, if the image is corrupted, it will be deleted'.format(
         opt.data_type))
