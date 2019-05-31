@@ -72,7 +72,7 @@ if __name__ == '__main__':
         opt.data_type))
     for image_name in sorted(os.listdir(out_dir)):
         try:
-            im = Image.open(image_name)
+            im = Image.open('{}/{}'.format(out_dir, image_name))
             print('Image-Name: %-20s Status: %-20s' % (image_name, 'Success Saved.'))
         except IOError:
             # damaged
