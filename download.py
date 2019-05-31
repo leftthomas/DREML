@@ -9,6 +9,8 @@ from urllib.request import urlopen
 
 import pandas as pd
 from PIL import Image
+from joblib import Parallel
+from joblib import delayed
 
 
 def download_image(key, url):
@@ -60,5 +62,15 @@ if __name__ == '__main__':
 
     csv_reader = pd.read_csv(data_file)
     print('Download {} part of Google Landmarks dataset'.format(opt.data_type))
-    for key, url in zip(csv_reader.id.tolist(), csv_reader.url.tolist()):
-        download_image(key, url)
+    Parallel(n_jobs=8)(delayed(download_image)(row['id'], row['url']) for i, row in csv_reader.iterrows())
+    # clean the corrupted images
+    print('Check {} part of Google Landmarks dataset, if the image is corrupted, it will be deleted'.format(
+        opt.data_type))
+    for image_name in sorted(os.listdir(out_dir)):
+        try:
+            im = Image.open(image_name)
+            print('{} is success saved.'.format(image_name))
+        except IOError:
+            # damaged
+            os.remove(image_name)
+            print('{} is corrupted and removed.'.format(image_name))
