@@ -21,11 +21,13 @@ def download_image(key, url):
         return 0
 
     try:
-        request = Request(url)
+        headers = {'User-Agent': 'User-Agent:Mozilla/5.0'}
+        request = Request(url, headers=headers)
         response = urlopen(request)
         image_data = response.read()
-    except:
+    except Exception as e:
         print('Warning: Could not download image {} from {}.'.format(key, url))
+        print(e)
         return 1
 
     try:
