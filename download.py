@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
     csv_reader = pd.read_csv(data_file)
     print('Download {} part of Google Landmarks dataset'.format(opt.data_type))
-    Parallel(n_jobs=8)(delayed(download_image)(row['id'], row['url']) for i, row in csv_reader.iterrows())
+    Parallel(n_jobs=24)(delayed(download_image)(row['id'], row['url']) for i, row in csv_reader.iterrows())
     # clean the corrupted images
     print('Check {} part of Google Landmarks dataset, if the image is corrupted, it will be deleted'.format(
         opt.data_type))
