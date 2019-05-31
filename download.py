@@ -54,6 +54,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download Google Landmarks dataset')
     parser.add_argument('--data_type', default='index', type=str, choices=['index', 'train', 'test'],
                         help='type of data')
+    parser.add_argument('--n_jobs', default=24, type=int, help='number of parallel jobs')
 
     opt = parser.parse_args()
 
@@ -64,7 +65,7 @@ if __name__ == '__main__':
 
     csv_reader = pd.read_csv(data_file)
     print('Download {} part of Google Landmarks dataset'.format(opt.data_type))
-    Parallel(n_jobs=24)(delayed(download_image)(row['id'], row['url']) for i, row in csv_reader.iterrows())
+    Parallel(n_jobs=opt.n_jobs)(delayed(download_image)(row['id'], row['url']) for i, row in csv_reader.iterrows())
     # clean the corrupted images
     print('Check {} part of Google Landmarks dataset, if the image is corrupted, it will be deleted'.format(
         opt.data_type))
