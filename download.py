@@ -17,7 +17,7 @@ from joblib import delayed
 def download_image(key, url):
     filename = '{}/{}.jpg'.format(out_dir, key)
     if os.path.exists(filename):
-        print('Image {} already exists. Skipping download.'.format(filename))
+        print('Image-Name: %-16s Status: %-16s' % (os.path.basename(filename), 'Exists.'))
         return 0
 
     try:
@@ -26,29 +26,28 @@ def download_image(key, url):
         response = urlopen(request)
         image_data = response.read()
     except Exception as e:
-        print('Warning: Could not download image {} from {}.'.format(key, url))
-        print(e)
+        print('Image-Name: %-16s Status: %-16s Reason: %-16s' % (os.path.basename(filename), 'Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image = Image.open(BytesIO(image_data))
-    except:
-        print('Warning: Failed to parse image {}.'.format(key))
+    except Exception as e:
+        print('Image-Name: %-16s Status: %-16s Reason: %-16s' % (os.path.basename(filename), 'Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image_rgb = pil_image.convert('RGB')
-    except:
-        print('Warning: Failed to convert image {} to RGB.'.format(key))
+    except Exception as e:
+        print('Image-Name: %-16s Status: %-16s Reason: %-16s' % (os.path.basename(filename), 'Error', '{}.'.format(e)))
         return 1
 
     try:
         pil_image_rgb.save(filename, format='JPEG', quality=90)
-    except:
-        print('Warning: Failed to save image {}.'.format(filename))
+    except Exception as e:
+        print('Image-Name: %-16s Status: %-16s Reason: %-16s' % (os.path.basename(filename), 'Error', '{}.'.format(e)))
         return 1
 
-    print('Success: Image {} is download.'.format(filename))
+    print('Image-Name: %-16s Status: %-16s' % (os.path.basename(filename), 'Success.'))
     return 0
 
 
@@ -74,8 +73,8 @@ if __name__ == '__main__':
     for image_name in sorted(os.listdir(out_dir)):
         try:
             im = Image.open(image_name)
-            print('{} is success saved.'.format(image_name))
+            print('Image-Name: %-16s Status: %-16s' % (image_name, 'Success Saved.'))
         except IOError:
             # damaged
-            os.remove(image_name)
-            print('{} is corrupted and removed.'.format(image_name))
+            os.remove('{}/{}'.format(out_dir, image_name))
+            print('Image-Name: %-16s Status: %-16s' % (image_name, 'Corrupted.'))
