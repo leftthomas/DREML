@@ -2,6 +2,8 @@ import numbers
 
 import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchnet.meter import meter
@@ -63,6 +65,23 @@ class RecallMeter(meter.Meter):
             return [self.value(k_) for k_ in self.topk]
 
 
+class DiverseLoss(nn.Module):
+    def __init__(self, size_average=True):
+        super(DiverseLoss, self).__init__()
+        self.size_average = size_average
+
+    def forward(self, classes, labels, image_name):
+        labels = F.one_hot(labels, self.num_class).float()
+        left = F.relu(0.9 - classes, inplace=True) ** 2
+        right = F.relu(classes - 0.1, inplace=True) ** 2
+        loss = labels * left + 0.5 * (1 - labels) * right
+        loss = loss.sum(dim=-1)
+        if self.size_average:
+            return loss.mean()
+        else:
+            return loss.sum()
+
+
 class RetrievalDataset(Dataset):
     def __init__(self, data_type, train=True):
         if train:
@@ -78,7 +97,7 @@ class RetrievalDataset(Dataset):
         img_path = self.images[index]
         label = int(self.labels[index]) - 1
         img = self.transform(Image.open(img_path).convert('RGB'))
-        return img, label
+        return img, label, img_path
 
     def __len__(self):
         return len(self.images)
