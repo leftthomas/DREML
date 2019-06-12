@@ -1,6 +1,5 @@
 import json
 
-import pandas as pd
 from scipy.io import loadmat
 
 
@@ -19,7 +18,7 @@ def read_txt(path):
     data = {}
     for line in open(path, 'r', encoding='utf-8'):
         data_1, data_2 = line.split()
-        data[data_1] = [data_2]
+        data[data_1] = data_2
     return data
 
 
@@ -32,7 +31,7 @@ def process_car_data(data_path):
     write_json(classes, '{}/{}'.format(data_path, class_json))
 
     for img in annotations:
-        img_name, img_label, flag = str(img[0][0]), int(img[-2][0][0]), int(img[-1][0][0])
+        img_name, img_label, flag = str(img[0][0]), str(img[-2][0][0]), int(img[-1][0][0])
         if flag == 0:
             trains['{}/{}'.format(data_path, img_name)] = img_label
         else:
@@ -42,14 +41,17 @@ def process_car_data(data_path):
 
 
 def process_cub_data(data_path):
-    images = pd.DataFrame.from_dict(read_txt('{}/images.txt'.format(data_path)), orient='index', columns=['path'])
-    splits = pd.DataFrame.from_dict(read_txt('{}/train_test_split.txt'.format(data_path)), orient='index',
-                                    columns=['flag'])
-    labels = pd.DataFrame.from_dict(read_txt('{}/image_class_labels.txt'.format(data_path)), orient='index',
-                                    columns=['label'])
-    data = pd.concat([images, labels, splits], axis=1)
-    trains, tests = data[data['flag'] == '1'][['path', 'label']], data[data['flag'] == '0'][['path', 'label']]
-    trains, tests = dict(zip(trains['path'], trains['label'])), dict(zip(tests['path'], tests['label']))
+    classes = read_txt('{}/classes.txt'.format(data_path))
+    write_json(classes, '{}/{}'.format(data_path, class_json))
+    images = read_txt('{}/images.txt'.format(data_path))
+    splits = read_txt('{}/train_test_split.txt'.format(data_path))
+    labels = read_txt('{}/image_class_labels.txt'.format(data_path))
+    trains, tests = {}, {}
+    for index, img_name in enumerate(images.values()):
+        if splits[str(index + 1)] == '1':
+            trains['{}/{}'.format(data_path, img_name)] = labels[str(index + 1)]
+        else:
+            tests['{}/{}'.format(data_path, img_name)] = labels[str(index + 1)]
     write_json(trains, '{}/{}'.format(data_path, train_json))
     write_json(tests, '{}/{}'.format(data_path, test_json))
 
