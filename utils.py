@@ -71,12 +71,12 @@ class RetrievalDataset(Dataset):
         else:
             data = read_json('data/{}/test.json'.format(data_type))
             self.transform = transform_test
-        self.images, self.labels = data.keys(), data.values()
+        self.images, self.labels = list(data.keys()), list(data.values())
         self.classes = read_json('data/{}/class.json'.format(data_type))
 
     def __getitem__(self, index):
-        img_path = self.images[str(index)]
-        label = int(self.labels[str(index)]) - 1
+        img_path = self.images[index]
+        label = int(self.labels[index]) - 1
         img = self.transform(Image.open(img_path).convert('RGB'))
         return img, label
 
