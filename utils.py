@@ -2,9 +2,12 @@ import numbers
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchnet.meter import meter
 from torchvision import transforms
+
+transform_train = transforms.Compose([transforms.Resize(224), transforms.RandomCrop(224), transforms.ToTensor()])
+transform_test = transforms.Compose([transforms.Resize(224), transforms.CenterCrop(224), transforms.ToTensor()])
 
 
 class RecallMeter(meter.Meter):
@@ -57,9 +60,36 @@ class RecallMeter(meter.Meter):
             return [self.value(k_) for k_ in self.topk]
 
 
+class RetrievalDataset(Dataset):
+    def __init__(self, data_type, train=True):
+        if train:
+            self.annos = read_json(os.path.join(root_path, 'train.json'))
+            self.transform = transform_train
+        else:
+            self.annos = read_json(os.path.join(root_path, 'test.json'))
+            self.transform = transform_test
+        self.imgs = []
+        for img in self.annos:
+            self.imgs.append(img)
+
+    def __getitem__(self, index):
+        img = self.imgs[index]
+        name = img
+        item = self.annos[img]
+        img_path = item['path']
+        label = item['label'] - 1
+        img = Image.open(img_path).convert('RGB')
+        if self.transform is not None:
+            img = self.transform(img)
+        return img, label, name
+
+    def __len__(self):
+        return len(self.imgs)
+
+
 def load_data(data_type, batch_size=32):
-    train_set = ImageDataset('data/train', transforms.ToTensor())
-    test_set = ImageDataset('data/test', transforms.ToTensor())
-    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False)
+    train_set = RetrievalDataset(data_type, train=True)
+    test_set = RetrievalDataset(data_type, train=False)
+    train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=8, shuffle=True)
+    test_loader = DataLoader(test_set, batch_size=batch_size, num_workers=8, shuffle=False)
     return train_loader, test_loader

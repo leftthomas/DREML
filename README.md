@@ -17,7 +17,11 @@ pip install git+https://github.com/leftthomas/CapsuleLayer.git@master
 ```
 
 ## Datasets
-TODO
+[cars196](http://ai.stanford.edu/~jkrause/cars/car_dataset.html), [cub200](http://www.vision.caltech.edu/visipedia/CUB-200-2011.html)
+and [sop](http://cvgl.stanford.edu/projects/lifted_struct/) are used in this repo.
+
+You should download these datasets by yourself, and extract them into `data` directory, make sure the dir names are 
+`cars`, `cub` and `sop`. Then run `data_utils.py` to preprocess them.
 
 ## Usage
 ### Train Model
