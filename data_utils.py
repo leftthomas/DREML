@@ -1,87 +1,75 @@
 import json
-import os
 
-import numpy as np
+import pandas as pd
 from scipy.io import loadmat
 
 
-# write json
-def write_class_dic(mat_path, json_path):
-    class_dic = {}
-    cars_mat = loadmat(mat_path)
-    info = cars_mat['class_names']
-    with open(json_path, "w", encoding='utf-8') as f:
-        for i in range(info.shape[1]):
-            data = info[0, i]
-            car_class = str(np.squeeze(data[0]))
-            class_dic[str(i + 1)] = car_class
-        f.write(json.dumps(class_dic))
+def write_json(data, path):
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(json.dumps(data))
 
 
-# 写训练json
-def write_train_json(mat_path, train_json_path, test_json_path, dic_path, img_root_path):
-    train_dic = {}
-    test_dic = {}
-    train_mat = loadmat(mat_path)
-    info = train_mat['annotations']
-    dic = read_json(dic_path)  # 读取字典
-    for i in range(info.shape[1]):
-        data = info[0, i]
-        test_sign = int(np.squeeze(data[-1]))
-        car_label = int(np.squeeze(data[5]))
-        car_classname = dic[str(car_label)]
-        jpg_name = os.path.basename(str(np.squeeze(data[0])))
-        img_path = os.path.join(img_root_path, jpg_name)
-        if test_sign == 0:
-            train_dic[jpg_name] = jpg_name
-            train_dic[jpg_name] = {}
-            train_dic[jpg_name]['classname'] = car_classname
-            train_dic[jpg_name]['label'] = car_label
-            train_dic[jpg_name]['path'] = img_path
-        else:
-            test_dic[jpg_name] = jpg_name
-            test_dic[jpg_name] = {}
-            test_dic[jpg_name]['classname'] = car_classname
-            test_dic[jpg_name]['label'] = car_label
-            test_dic[jpg_name]['path'] = img_path
-
-    with open(train_json_path, "w", encoding='utf-8') as f:
-        f.write(json.dumps(train_dic))
-    with open(test_json_path, "w", encoding='utf-8') as f:
-        f.write(json.dumps(test_dic))
-
-    print('train preproccessing num: %s' % str(len(train_dic)))
-    print('train preproccessing num: %s' % str(len(test_dic)))
-
-
-# 写json文件
-def write_json(path, dic):
-    with open(path, "w", encoding='utf-8') as f:
-        f.write(json.dumps(dic))
-
-
-# 读取json文件
 def read_json(path):
-    with open(path, "r", encoding='utf-8') as f:
-        dic = json.loads(f.read())
-        # f.seek(0)
-        # dic2 = json.load(f)
-    return dic
+    with open(path, 'r', encoding='utf-8') as f:
+        data = json.loads(f.read())
+    return data
+
+
+def read_txt(path):
+    data = {}
+    for line in open(path, 'r', encoding='utf-8'):
+        data_1, data_2 = line.split()
+        data[data_1] = [data_2]
+    return data
+
+
+def process_car_data(data_path):
+    classes, trains, tests = {}, {}, {}
+    annos_mat = loadmat('{}/cars_annos.mat'.format(data_path))
+    class_names, annotations = annos_mat['class_names'][0], annos_mat['annotations'][0]
+    for index, class_name in enumerate(class_names):
+        classes[index + 1] = str(class_name[0])
+    write_json(classes, '{}/{}'.format(data_path, class_json))
+
+    for img in annotations:
+        img_name, img_label, flag = str(img[0][0]), int(img[-2][0][0]), int(img[-1][0][0])
+        if flag == 0:
+            trains['{}/{}'.format(data_path, img_name)] = img_label
+        else:
+            tests['{}/{}'.format(data_path, img_name)] = img_label
+    write_json(trains, '{}/{}'.format(data_path, train_json))
+    write_json(tests, '{}/{}'.format(data_path, test_json))
+
+
+def process_cub_data(data_path):
+    images = pd.DataFrame.from_dict(read_txt('{}/images.txt'.format(data_path)), orient='index', columns=['path'])
+    splits = pd.DataFrame.from_dict(read_txt('{}/train_test_split.txt'.format(data_path)), orient='index',
+                                    columns=['flag'])
+    labels = pd.DataFrame.from_dict(read_txt('{}/image_class_labels.txt'.format(data_path)), orient='index',
+                                    columns=['label'])
+    data = pd.concat([images, labels, splits], axis=1)
+    trains, tests = data[data['flag'] == '1'][['path', 'label']], data[data['flag'] == '0'][['path', 'label']]
+    trains, tests = dict(zip(trains['path'], trains['label'])), dict(zip(tests['path'], tests['label']))
+    write_json(trains, '{}/{}'.format(data_path, train_json))
+    write_json(tests, '{}/{}'.format(data_path, test_json))
+
+
+def process_sop_data(data_path):
+    annos_mat = '{}/cars_annos.mat'.format(data_path)
+    meta_mat = '{}/cars_meta.mat'.format(data_path)
+    imgs_path = '{}/car_ims'.format(data_path)
+    write_class(meta_mat, '{}/{}'.format(data_path, class_json))
 
 
 if __name__ == '__main__':
-    train_mat_path = 'data/cars196/cars_annos.mat'
-    test_mat_path = 'data/cars196/cars_test_annos_withlabels.mat'
-    cars_mat_path = 'data/cars196/cars_meta.mat'
-
-    train_json_path = 'data/cars196/train.json'
-    test_json_path = 'data/cars196/test.json'
-    class_json_path = 'data/cars196/class_annotation.json'
-    img_root_path = 'data/cars196/car_ims'
+    train_json, test_json, class_json = 'train.json', 'test.json', 'class.json'
+    process_car_data('data/cars')
+    process_cub_data('data/cub')
+    process_sop_data('data/sop')
 
     # write_class_dic()
 
-    write_train_json(train_mat_path, train_json_path, test_json_path, class_json_path, img_root_path)
+    write_train(train_mat_path, train_json_path, test_json_path, class_json_path, img_root_path)
 
     # write_test_json(test_mat_path, test_json_path, class_json_path)
 
