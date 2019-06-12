@@ -31,13 +31,11 @@ def on_sample(state):
 
 def reset_meters():
     meter_loss.reset()
-    meter_accuracy.reset()
     meter_recall.reset()
 
 
 def on_forward(state):
     meter_loss.add(state['loss'].item())
-    meter_accuracy.add(state['output'].detach().cpu(), state['sample'][1])
     meter_recall.add(state['output'].detach().cpu(), state['sample'][1])
 
 
@@ -48,17 +46,12 @@ def on_start_epoch(state):
 
 def on_end_epoch(state):
     loss_logger.log(state['epoch'], meter_loss.value()[0], name='train')
-    accuracy_logger.log(state['epoch'], meter_accuracy.value()[0], name='train_1')
-    accuracy_logger.log(state['epoch'], meter_accuracy.value()[1], name='train_5')
     for index, k in enumerate(recall_ids):
         recall_logger.log(state['epoch'], meter_recall.value()[index], name='train_recall_{}'.format(str(k)))
     results['train_loss'].append(meter_loss.value()[0])
-    results['train_accuracy_1'].append(meter_accuracy.value()[0])
-    results['train_accuracy_5'].append(meter_accuracy.value()[1])
     for index, k in enumerate(recall_ids):
         results['train_recall_{}'.format(str(k))].append(meter_recall.value()[index])
-    desc = '[Epoch %d] Training Loss: %.4f Top1 Accuracy: %.2f%% Top5 Accuracy: %.2f%%' % (
-        state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0], meter_accuracy.value()[1])
+    desc = '[Epoch %d] Training Loss: %.4f' % (state['epoch'], meter_loss.value()[0])
     for index, k in enumerate(recall_ids):
         desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
     print(desc)
@@ -69,17 +62,12 @@ def on_end_epoch(state):
         engine.test(processor, test_loader)
 
     loss_logger.log(state['epoch'], meter_loss.value()[0], name='test')
-    accuracy_logger.log(state['epoch'], meter_accuracy.value()[0], name='test_1')
-    accuracy_logger.log(state['epoch'], meter_accuracy.value()[1], name='test_5')
     for index, k in enumerate(recall_ids):
         recall_logger.log(state['epoch'], meter_recall.value()[index], name='test_recall_{}'.format(str(k)))
     results['test_loss'].append(meter_loss.value()[0])
-    results['test_accuracy_1'].append(meter_accuracy.value()[0])
-    results['test_accuracy_5'].append(meter_accuracy.value()[1])
     for index, k in enumerate(recall_ids):
         results['test_recall_{}'.format(str(k))].append(meter_recall.value()[index])
-    desc = '[Epoch %d] Testing Loss: %.4f Top1 Accuracy: %.2f%% Top5 Accuracy: %.2f%%' % (
-        state['epoch'], meter_loss.value()[0], meter_accuracy.value()[0], meter_accuracy.value()[1])
+    desc = '[Epoch %d] Testing Loss: %.4f' % (state['epoch'], meter_loss.value()[0])
     for index, k in enumerate(recall_ids):
         desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
     print(desc)
@@ -103,24 +91,22 @@ if __name__ == '__main__':
     DATA_TYPE, RECALLS, BATCH_SIZE, NUM_EPOCH = opt.data_type, opt.recalls, opt.batch_size, opt.num_epochs
     recall_ids = [int(k) for k in RECALLS.split(',')]
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    results = {'train_loss': [], 'train_accuracy_1': [], 'train_accuracy_5': [], 'test_loss': [], 'test_accuracy_1': [],
-               'test_accuracy_5': []}
+    results = {'train_loss': [], 'test_loss': []}
     for k in recall_ids:
         results['train_recall_{}'.format(str(k))], results['test_recall_{}'.format(str(k))] = [], []
 
     train_loader, test_loader = utils.load_data(data_type=DATA_TYPE, batch_size=BATCH_SIZE)
-    model = Model().to(DEVICE)
+    num_classes = len(train_loader.dataset.classes)
+    model = Model(num_classes).to(DEVICE)
     loss_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(params=model.parameters())
     print("# parameters:", sum(param.numel() for param in model.parameters()))
 
     engine = Engine()
     meter_loss = tnt.meter.AverageValueMeter()
-    meter_accuracy = tnt.meter.ClassErrorMeter(topk=[1, 5], accuracy=True)
     meter_recall = utils.RecallMeter(topk=recall_ids)
 
     loss_logger = VisdomPlotLogger('line', env=DATA_TYPE, opts={'title': 'Loss'})
-    accuracy_logger = VisdomPlotLogger('line', env=DATA_TYPE, opts={'title': 'Accuracy'})
     recall_logger = VisdomPlotLogger('line', env=DATA_TYPE, opts={'title': 'Recall'})
 
     engine.hooks['on_sample'] = on_sample
