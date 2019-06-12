@@ -24,13 +24,22 @@ TODO
 ```
 visdom -logging_level WARNING & python train.py --num_epochs 200
 optional arguments:
+--data_type                   dataset type [default value is 'cars'](choices=['cars', 'cub', 'sop'])
+--recalls                     selected recall [default value is '1,2,4,8']
 --batch_size                  train batch size [default value is 32]
 --num_epochs                  train epochs number [default value is 100]
 ```
-Visdom now can be accessed by going to `127.0.0.1:8097` in your browser.
+Visdom now can be accessed by going to `127.0.0.1:8097/$data_type` in your browser.
 
 ## Results
-The train loss、accuracy, test loss、accuracy are showed on visdom.
-![result](results/mutag.png)
-![result](results/ptc.png)
+The train loss, accuracy, recall and test loss, accuracy, recall are showed on visdom.
+
+### cars
+![result](results/cars.png)
+
+### cub
+![result](results/cub.png)
+
+### sop
+![result](results/sop.png)
 

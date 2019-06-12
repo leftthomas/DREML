@@ -93,7 +93,7 @@ def on_end_epoch(state):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Image Retrieval Model')
-    parser.add_argument('--data_type', default='cars', type=str, choices=['cars', 'cub', 'sop'], help='data type')
+    parser.add_argument('--data_type', default='cars', type=str, choices=['cars', 'cub', 'sop'], help='dataset type')
     parser.add_argument('--recalls', default='1,2,4,8', type=str, help='selected recall')
     parser.add_argument('--batch_size', default=32, type=int, help='training batch size')
     parser.add_argument('--num_epochs', default=100, type=int, help='train epoch number')
@@ -119,9 +119,9 @@ if __name__ == '__main__':
     meter_accuracy = tnt.meter.ClassErrorMeter(topk=[1, 5], accuracy=True)
     meter_recall = utils.RecallMeter(topk=recall_ids)
 
-    loss_logger = VisdomPlotLogger('line', opts={'title': 'Loss'})
-    accuracy_logger = VisdomPlotLogger('line', opts={'title': 'Accuracy'})
-    recall_logger = VisdomPlotLogger('line', opts={'title': 'Recall'})
+    loss_logger = VisdomPlotLogger('line', env=DATA_TYPE, opts={'title': 'Loss'})
+    accuracy_logger = VisdomPlotLogger('line', env=DATA_TYPE, opts={'title': 'Accuracy'})
+    recall_logger = VisdomPlotLogger('line', env=DATA_TYPE, opts={'title': 'Recall'})
 
     engine.hooks['on_sample'] = on_sample
     engine.hooks['on_forward'] = on_forward
