@@ -2,9 +2,12 @@ import numbers
 
 import numpy as np
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchnet.meter import meter
 from torchvision import transforms
+
+from data_utils import read_json
 
 transform_train = transforms.Compose([transforms.Resize(224), transforms.RandomCrop(224), transforms.ToTensor()])
 transform_test = transforms.Compose([transforms.Resize(224), transforms.CenterCrop(224), transforms.ToTensor()])
@@ -63,28 +66,22 @@ class RecallMeter(meter.Meter):
 class RetrievalDataset(Dataset):
     def __init__(self, data_type, train=True):
         if train:
-            self.annos = read_json(os.path.join(root_path, 'train.json'))
+            data = read_json('data/{}/train.json'.format(data_type))
             self.transform = transform_train
         else:
-            self.annos = read_json(os.path.join(root_path, 'test.json'))
+            data = read_json('data/{}/test.json'.format(data_type))
             self.transform = transform_test
-        self.imgs = []
-        for img in self.annos:
-            self.imgs.append(img)
+        self.images, self.labels = data.keys(), data.values()
+        self.classes = read_json('data/{}/class.json'.format(data_type))
 
     def __getitem__(self, index):
-        img = self.imgs[index]
-        name = img
-        item = self.annos[img]
-        img_path = item['path']
-        label = item['label'] - 1
-        img = Image.open(img_path).convert('RGB')
-        if self.transform is not None:
-            img = self.transform(img)
-        return img, label, name
+        img_path = self.images[str(index)]
+        label = int(self.labels[str(index)]) - 1
+        img = self.transform(Image.open(img_path).convert('RGB'))
+        return img, label
 
     def __len__(self):
-        return len(self.imgs)
+        return len(self.images)
 
 
 def load_data(data_type, batch_size=32):
