@@ -96,8 +96,7 @@ if __name__ == '__main__':
         results['train_recall_{}'.format(str(k))], results['test_recall_{}'.format(str(k))] = [], []
 
     train_loader, test_loader = utils.load_data(data_type=DATA_TYPE, batch_size=BATCH_SIZE)
-    num_classes = len(train_loader.dataset.classes)
-    model = Model(num_classes).to(DEVICE)
+    model = Model().to(DEVICE)
     loss_criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(params=model.parameters())
     print("# parameters:", sum(param.numel() for param in model.parameters()))

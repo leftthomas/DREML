@@ -87,44 +87,26 @@ class CompositionalEmbedding(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self, num_class):
+    def __init__(self):
         super(Model, self).__init__()
 
         # backbone
-        basic_model, layers = ResNet(BasicBlock, [2, 2, 2, 2], num_classes=num_class), []
+        basic_model, layers = ResNet(BasicBlock, [2, 2, 2, 2]), []
         for name, module in basic_model.named_children():
             if isinstance(module, nn.Linear) or isinstance(module, nn.AdaptiveAvgPool2d):
                 continue
             layers.append(module)
-        self.features = nn.Sequential(*layers)
+        self.raw_features = nn.Sequential(*layers)
 
-        self.linear = nn.Linear(7 * 7 * 512, num_class)
+        # feature
+        self.compact_features = nn.Linear(7 * 7 * 512, 512)
+        # self.compact_features = CapsuleLinear(out_capsules=16, in_length=64, out_length=32)
 
         # embedding
-        self.embedding = CompositionalEmbedding(vocab_size, embedding_size, num_codebook, num_codeword, weighted=False)
-
-        # to Hash
-        self.hash_layer = nn.Linear(config.embedding_size, config.hash_bit)
-        self.hash_layer.weight.data.normal_(0, 0.01)  # means和std -> 均值和标准差
-        self.hash_layer.bias.data.fill_(0.0)  # 补0
+        # self.embedding = CompositionalEmbedding(60000, 64, 8, weighted=False, return_code=True)
 
     def forward(self, x):
-        # 基础网络(ResNet18...)
-        x = self.base(x)
-        # x = x.permute(0, 2, 3, 1)
-        # x = x.contiguous().view(x.size(0), -1, 32)
+        x = self.raw_features(x)
         x = x.view(x.size(0), -1)
-        feature = x
-        classes = self.linear(x)
-        # classes = self.softmax(x)
-        # 分类
-        # classes = x.norm(dim=-1)
-
-        # embedding
-        # x = self.embedding(x)
-
-        # to Hash
-        # hash = self.hash_layer(x)
-
-        # return classes, hash
-        return classes, feature
+        out = self.compact_features(x)
+        return out

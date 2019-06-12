@@ -32,7 +32,7 @@ optional arguments:
 Visdom now can be accessed by going to `127.0.0.1:8097/$data_type` in your browser.
 
 ## Results
-The train loss, accuracy, recall and test loss, accuracy, recall are showed on visdom.
+The train loss, recall and test loss, recall are showed on visdom.
 
 ### cars
 ![result](results/cars.png)
