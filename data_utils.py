@@ -57,10 +57,23 @@ def process_cub_data(data_path):
 
 
 def process_sop_data(data_path):
-    annos_mat = '{}/cars_annos.mat'.format(data_path)
-    meta_mat = '{}/cars_meta.mat'.format(data_path)
-    imgs_path = '{}/car_ims'.format(data_path)
-    write_class(meta_mat, '{}/{}'.format(data_path, class_json))
+    class_names, classes, trains, tests = set(), {}, {}, {}
+    for index, line in enumerate(open('{}/Ebay_train.txt'.format(data_path), 'r', encoding='utf-8')):
+        if index != 0:
+            _, _, label, img_name = line.split()
+            trains['{}/{}'.format(data_path, img_name)] = label
+            class_names.add(img_name.split('/')[0].replace('_final', ''))
+    for index, line in enumerate(open('{}/Ebay_test.txt'.format(data_path), 'r', encoding='utf-8')):
+        if index != 0:
+            _, _, label, img_name = line.split()
+            tests['{}/{}'.format(data_path, img_name)] = label
+            class_names.add(img_name.split('/')[0].replace('_final', ''))
+
+    for index, class_name in enumerate(sorted(class_names)):
+        classes[index + 1] = class_name
+    write_json(classes, '{}/{}'.format(data_path, class_json))
+    write_json(trains, '{}/{}'.format(data_path, train_json))
+    write_json(tests, '{}/{}'.format(data_path, test_json))
 
 
 if __name__ == '__main__':
@@ -69,13 +82,3 @@ if __name__ == '__main__':
     process_cub_data('data/cub')
     process_sop_data('data/sop')
 
-    # write_class_dic()
-
-    write_train(train_mat_path, train_json_path, test_json_path, class_json_path, img_root_path)
-
-    # write_test_json(test_mat_path, test_json_path, class_json_path)
-
-    # with open(train_json_path, "r", encoding='utf-8') as f:
-    #     json_file = json.loads(f.read())
-    #     for i in json_file:
-    #         print(i)
