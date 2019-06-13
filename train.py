@@ -13,14 +13,14 @@ from model import Model
 
 
 def processor(sample):
-    data, label, img_name, training = sample
+    data, positives, negatives, training = sample
 
-    data, label = data.to(DEVICE), label.to(DEVICE)
+    data, positives, negatives = data.to(DEVICE), positives.to(DEVICE), negatives.to(DEVICE)
 
     model.train(training)
 
     classes = model(data)
-    loss = loss_criterion(classes, label, img_name)
+    loss = loss_criterion(classes, positives, negatives, model)
     return loss, classes
 
 

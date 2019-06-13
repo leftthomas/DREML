@@ -4,6 +4,7 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchnet.meter import meter
@@ -66,16 +67,21 @@ class RecallMeter(meter.Meter):
 
 
 class DiverseLoss(nn.Module):
-    def __init__(self, size_average=True):
+    def __init__(self):
         super(DiverseLoss, self).__init__()
-        self.size_average = size_average
 
-    def forward(self, classes, labels, image_name):
-
-        if self.size_average:
-            return loss.mean()
-        else:
-            return loss.sum()
+    def forward(self, classes, positives, negatives, model):
+        classes = classes.unsqueeze(dim=1)
+        p_samples = positives.view(-1, *positives.size()[2:])
+        n_samples = negatives.view(-1, *negatives.size()[2:])
+        p_out, n_out = model(p_samples), model(n_samples)
+        p_out = p_out.view(classes.size(0), -1, p_out.size(-1))
+        n_out = n_out.view(classes.size(0), -1, n_out.size(-1))
+        p_loss = torch.abs(classes.norm(dim=-1) - p_out.norm(dim=-1)).mean(dim=-1)
+        n_loss = torch.abs(classes.norm(dim=-1) - n_out.norm(dim=-1)).mean(dim=-1).clamp(min=1e-8).pow(-1)
+        p_direction_loss = (1 + F.cosine_similarity(classes, p_out, dim=-1)).mean(dim=-1)
+        loss = p_loss + n_loss + p_direction_loss
+        return loss.mean()
 
 
 class RetrievalDataset(Dataset):
@@ -86,6 +92,7 @@ class RetrievalDataset(Dataset):
         else:
             data = read_json('data/{}/test.json'.format(data_type))
             self.transform = transform_test
+        self.train = train
         self.images, self.labels = list(data.keys()), list(data.values())
         self.classes = read_json('data/{}/class.json'.format(data_type))
         self.k, self.indexes = k, set(range(len(self.images)))
@@ -94,20 +101,23 @@ class RetrievalDataset(Dataset):
         img_path, label = self.images[index], self.labels[index]
         img = self.transform(Image.open(img_path).convert('RGB'))
 
-        positive_index = set(np.where(np.array(self.labels) == label)[0].tolist())
-        negative_index = self.indexes - positive_index
-        # make sure the search database don't contain itself
-        positive_database = list(positive_index - set([index]))
-        negative_database = list(negative_index)
-        # choose k samples
-        positive_database = random.choices(positive_database, k=self.k)
-        negative_database = random.choices(negative_database, k=self.k)
-        positives, negatives = [], []
-        for i in range(self.k):
-            positives.append(self.transform(Image.open(self.images[positive_database[i]]).convert('RGB')))
-            negatives.append(self.transform(Image.open(self.images[negative_database[i]]).convert('RGB')))
-        positives, negatives = torch.stack(positives), torch.stack(negatives)
-        return img, positives, negatives
+        if self.train:
+            positive_index = set(np.where(np.array(self.labels) == label)[0].tolist())
+            negative_index = self.indexes - positive_index
+            # make sure the search database don't contain itself
+            positive_database = list(positive_index - set([index]))
+            negative_database = list(negative_index)
+            # choose k samples
+            positive_database = random.choices(positive_database, k=self.k)
+            negative_database = random.choices(negative_database, k=self.k)
+            positives, negatives = [], []
+            for i in range(self.k):
+                positives.append(self.transform(Image.open(self.images[positive_database[i]]).convert('RGB')))
+                negatives.append(self.transform(Image.open(self.images[negative_database[i]]).convert('RGB')))
+            positives, negatives = torch.stack(positives), torch.stack(negatives)
+            return img, positives, negatives
+        else:
+            pass
 
     def __len__(self):
         return len(self.images)
