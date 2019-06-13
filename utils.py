@@ -1,4 +1,5 @@
 import numbers
+import random
 
 import numpy as np
 import torch
@@ -78,7 +79,7 @@ class DiverseLoss(nn.Module):
 
 
 class RetrievalDataset(Dataset):
-    def __init__(self, data_type, train=True):
+    def __init__(self, data_type, train=True, k=10):
         if train:
             data = read_json('data/{}/train.json'.format(data_type))
             self.transform = transform_train
@@ -87,12 +88,26 @@ class RetrievalDataset(Dataset):
             self.transform = transform_test
         self.images, self.labels = list(data.keys()), list(data.values())
         self.classes = read_json('data/{}/class.json'.format(data_type))
+        self.k, self.indexes = k, set(range(len(self.images)))
 
     def __getitem__(self, index):
-        img_path = self.images[index]
-        label = int(self.labels[index]) - 1
+        img_path, label = self.images[index], self.labels[index]
         img = self.transform(Image.open(img_path).convert('RGB'))
-        return img, label, img_path
+
+        positive_index = set(np.where(np.array(self.labels) == label)[0].tolist())
+        negative_index = self.indexes - positive_index
+        # make sure the search database don't contain itself
+        positive_database = list(positive_index - set([index]))
+        negative_database = list(negative_index)
+        # choose k samples
+        positive_database = random.choices(positive_database, k=self.k)
+        negative_database = random.choices(negative_database, k=self.k)
+        positives, negatives = [], []
+        for i in range(self.k):
+            positives.append(self.transform(Image.open(self.images[positive_database[i]]).convert('RGB')))
+            negatives.append(self.transform(Image.open(self.images[negative_database[i]]).convert('RGB')))
+        positives, negatives = torch.stack(positives), torch.stack(negatives)
+        return img, positives, negatives
 
     def __len__(self):
         return len(self.images)
