@@ -75,16 +75,16 @@ if __name__ == '__main__':
         # test loop
         with torch.no_grad():
             model.eval()
+            val_features = []
+            for data in val_database:
+                val_features.append(model(data))
+            val_features = torch.cat(val_features)
             # compute recall for train data
             val_progress, num_data = tqdm(val_loader), 0
             for img, label, index in val_progress:
                 num_data += img.size(0)
                 img = img.to(DEVICE)
                 out = model(img)
-                val_features = []
-                for data in val_database:
-                    val_features.append(model(data))
-                val_features = torch.cat(val_features)
                 meter_recall.add(out.detach().cpu(), index, list(label), val_features)
                 desc = 'Val Epoch: {}---{}/{}'.format(epoch, num_data, len(val_set))
                 for i, k in enumerate(recall_ids):
@@ -98,16 +98,16 @@ if __name__ == '__main__':
             print(desc)
             meter_recall.reset()
 
+            test_features = []
+            for data in test_database:
+                test_features.append(model(data))
+            test_features = torch.cat(test_features)
             # compute recall for test data
             test_progress, num_data = tqdm(test_loader), 0
             for img, label, index in test_progress:
                 num_data += img.size(0)
                 img = img.to(DEVICE)
                 out = model(img)
-                test_features = []
-                for data in test_database:
-                    test_features.append(model(data))
-                test_features = torch.cat(test_features)
                 meter_recall.add(out.detach().cpu(), index, list(label), test_features)
                 desc = 'Test Epoch: {}---{}/{}'.format(epoch, num_data, len(test_set))
                 for i, k in enumerate(recall_ids):
