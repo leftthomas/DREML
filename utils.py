@@ -27,7 +27,7 @@ class RecallMeter(meter.Meter):
         self.sum = {v: 0 for v in self.topk}
         self.n = 0
 
-    def add(self, output, target):
+    def add(self, output, index, label, database):
         if torch.is_tensor(output):
             output = output.cpu().squeeze().numpy()
         if torch.is_tensor(target):

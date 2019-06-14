@@ -11,35 +11,6 @@ from tqdm import tqdm
 import utils
 from model import Model
 
-# def reset_meters():
-#     meter_loss.reset()
-#     meter_recall.reset()
-#
-#
-# def on_end_epoch(state):
-#
-#     # TODO
-#     meter_recall.add(state['output'].detach().cpu(), state['sample'][1])
-#
-#     for index, k in enumerate(recall_ids):
-#         recall_logger.log(state['epoch'], meter_recall.value()[index], name='train_recall_{}'.format(str(k)))
-#         results['train_recall_{}'.format(str(k))].append(meter_recall.value()[index])
-#         desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
-#
-#     reset_meters()
-#
-#     loss_logger.log(state['epoch'], meter_loss.value()[0], name='test')
-#     for index, k in enumerate(recall_ids):
-#         recall_logger.log(state['epoch'], meter_recall.value()[index], name='test_recall_{}'.format(str(k)))
-#     results['test_loss'].append(meter_loss.value()[0])
-#     for index, k in enumerate(recall_ids):
-#         results['test_recall_{}'.format(str(k))].append(meter_recall.value()[index])
-#     desc = '[Epoch %d] Testing Loss: %.4f' % (state['epoch'], meter_loss.value()[0])
-#     for index, k in enumerate(recall_ids):
-#         desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
-#     print(desc)
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Image Retrieval Model')
     parser.add_argument('--data_name', default='cars', type=str, choices=['cars', 'cub', 'sop'], help='dataset name')
@@ -60,17 +31,17 @@ if __name__ == '__main__':
     val_set = utils.RetrievalDataset(DATA_NAME, data_type='val')
     test_set = utils.RetrievalDataset(DATA_NAME, data_type='test')
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=8, shuffle=True)
-    val_loader = DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=8, shuffle=False)
+    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, num_workers=8, shuffle=False)
     test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, num_workers=8, shuffle=False)
 
     # load data to memory
     val_database, test_database = [], []
-    for img, label, index in DataLoader(train_set, batch_size=512, num_workers=8, shuffle=False):
+    for img, label, index in val_loader:
         val_database.append(img)
-    val_database = torch.stack(val_database).to(DEVICE)
-    for img, label, index in DataLoader(test_set, batch_size=512, num_workers=8, shuffle=False):
+    val_database = torch.cat(val_database)
+    for img, label, index in test_loader:
         test_database.append(img)
-    test_database = torch.stack(test_database).to(DEVICE)
+    test_database = torch.cat(test_database)
 
     model = Model().to(DEVICE)
     loss_criterion = utils.DiverseLoss()
@@ -84,9 +55,9 @@ if __name__ == '__main__':
 
     for epoch in range(1, NUM_EPOCH + 1):
         # train loop
-        train_progress, num_data = tqdm(train_loader), 0
         model.train()
-        for batch_idx, img, positives, negatives in enumerate(train_progress):
+        train_progress, num_data = tqdm(train_loader), 0
+        for img, positives, negatives in train_progress:
             num_data += img.size(0)
             img, positives, negatives = img.to(DEVICE), positives.to(DEVICE), negatives.to(DEVICE)
             optimizer.zero_grad()
@@ -95,17 +66,51 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
             meter_loss.add(loss.item())
-            train_progress.set_description('[Train Epoch: {}---{}/{} Loss: {:.6f}]'.format(
-                epoch, num_data, len(train_loader.dataset), meter_loss.value()[0]))
+            train_progress.set_description('Train Epoch: {}---{}/{} Loss: {:.2f}'.format(
+                epoch, num_data, len(train_set), meter_loss.value()[0]))
         loss_logger.log(epoch, meter_loss.value()[0], name='train')
         results['train_loss'].append(meter_loss.value()[0])
-        print('[Train Epoch: {} Loss: {:.6f}]'.format(epoch, meter_loss.value()[0]))
+        print('Train Epoch: {} Loss: {:.2f}'.format(epoch, meter_loss.value()[0]))
+        meter_loss.reset()
+
+        model.eval()
         # compute recall for train data
         val_progress, num_data = tqdm(val_loader), 0
-        model.eval()
-        for batch_idx, img, label, index in enumerate(val_progress):
+        for img, label, index in val_progress:
             num_data += img.size(0)
             img = img.to(DEVICE)
+            out = model(img)
+            meter_recall.add(out.detach().cpu(), index, list(label), val_database)
+            desc = 'Val Epoch: {}---{}/{}'.format(epoch, num_data, len(val_set))
+            for i, k in enumerate(recall_ids):
+                desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
+            val_progress.set_description(desc)
+        desc = 'Val Epoch: {}'.format(epoch)
+        for i, k in enumerate(recall_ids):
+            recall_logger.log(epoch, meter_recall.value()[i], name='train_recall_{}'.format(str(k)))
+            results['train_recall_{}'.format(str(k))].append(meter_recall.value()[i])
+            desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
+        print(desc)
+        meter_recall.reset()
+
+        # compute recall for test data
+        test_progress, num_data = tqdm(val_loader), 0
+        for img, label, index in test_progress:
+            num_data += img.size(0)
+            img = img.to(DEVICE)
+            out = model(img)
+            meter_recall.add(out.detach().cpu(), index, list(label), test_database)
+            desc = 'Test Epoch: {}---{}/{}'.format(epoch, num_data, len(test_set))
+            for i, k in enumerate(recall_ids):
+                desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
+            test_progress.set_description(desc)
+        desc = 'Test Epoch: {}'.format(epoch)
+        for i, k in enumerate(recall_ids):
+            recall_logger.log(epoch, meter_recall.value()[i], name='test_recall_{}'.format(str(k)))
+            results['test_recall_{}'.format(str(k))].append(meter_recall.value()[i])
+            desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
+        print(desc)
+        meter_recall.reset()
 
         # save model
         torch.save(model.state_dict(), 'epochs/%s_%d.pth' % (DATA_NAME, epoch))
