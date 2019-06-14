@@ -105,7 +105,7 @@ class RetrievalDataset(Dataset):
             positive_index = set(np.where(np.array(self.labels) == label)[0].tolist())
             negative_index = self.indexes - positive_index
             # make sure the search database don't contain itself
-            positive_database = list(positive_index - set([index]))
+            positive_database = list(positive_index - {index})
             negative_database = list(negative_index)
             # choose k samples
             positive_database = random.choices(positive_database, k=self.k)
@@ -117,7 +117,13 @@ class RetrievalDataset(Dataset):
             positives, negatives = torch.stack(positives), torch.stack(negatives)
             return img, positives, negatives
         else:
-            pass
+            test_index = self.indexes - {index}
+            test_database = list(test_index)
+            tests = []
+            for i in test_database:
+                tests.append(self.transform(Image.open(self.images[i]).convert('RGB')))
+            tests = torch.stack(tests)
+            return img, tests
 
     def __len__(self):
         return len(self.images)

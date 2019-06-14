@@ -13,14 +13,21 @@ from model import Model
 
 
 def processor(sample):
-    data, positives, negatives, training = sample
-
-    data, positives, negatives = data.to(DEVICE), positives.to(DEVICE), negatives.to(DEVICE)
+    if len(sample) == 4:
+        data, positives, negatives, training = sample
+        data, positives, negatives = data.to(DEVICE), positives.to(DEVICE), negatives.to(DEVICE)
+    else:
+        data, tests, training = sample
+        data, tests = data.to(DEVICE), tests.to(DEVICE)
 
     model.train(training)
 
     classes = model(data)
-    loss = loss_criterion(classes, positives, negatives, model)
+    if training:
+        loss = loss_criterion(classes, positives, negatives, model)
+    else:
+        # no meaning
+        loss = torch.zeros([]).to(DEVICE)
     return loss, classes
 
 
@@ -35,7 +42,6 @@ def reset_meters():
 
 def on_forward(state):
     meter_loss.add(state['loss'].item())
-    meter_recall.add(state['output'].detach().cpu(), state['sample'][1])
 
 
 def on_start_epoch(state):
@@ -45,13 +51,15 @@ def on_start_epoch(state):
 
 def on_end_epoch(state):
     loss_logger.log(state['epoch'], meter_loss.value()[0], name='train')
+    results['train_loss'].append(meter_loss.value()[0])
+    desc = '[Epoch %d] Training Loss: %.4f' % (state['epoch'], meter_loss.value()[0])
+
+    # TODO
+    meter_recall.add(state['output'].detach().cpu(), state['sample'][1])
+
     for index, k in enumerate(recall_ids):
         recall_logger.log(state['epoch'], meter_recall.value()[index], name='train_recall_{}'.format(str(k)))
-    results['train_loss'].append(meter_loss.value()[0])
-    for index, k in enumerate(recall_ids):
         results['train_recall_{}'.format(str(k))].append(meter_recall.value()[index])
-    desc = '[Epoch %d] Training Loss: %.4f' % (state['epoch'], meter_loss.value()[0])
-    for index, k in enumerate(recall_ids):
         desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
     print(desc)
 
