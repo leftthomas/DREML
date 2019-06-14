@@ -94,7 +94,7 @@ if __name__ == '__main__':
         meter_recall.reset()
 
         # compute recall for test data
-        test_progress, num_data = tqdm(val_loader), 0
+        test_progress, num_data = tqdm(test_loader), 0
         for img, label, index in test_progress:
             num_data += img.size(0)
             img = img.to(DEVICE)
