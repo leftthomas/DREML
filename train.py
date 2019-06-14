@@ -4,120 +4,111 @@ import pandas as pd
 import torch
 import torch.optim as optim
 import torchnet as tnt
-from torchnet.engine import Engine
+from torch.utils.data import DataLoader
 from torchnet.logger import VisdomPlotLogger
 from tqdm import tqdm
 
 import utils
 from model import Model
 
-
-def processor(sample):
-    if len(sample) == 4:
-        data, positives, negatives, training = sample
-        data, positives, negatives = data.to(DEVICE), positives.to(DEVICE), negatives.to(DEVICE)
-    else:
-        data, tests, training = sample
-        data, tests = data.to(DEVICE), tests.to(DEVICE)
-
-    model.train(training)
-
-    classes = model(data)
-    if training:
-        loss = loss_criterion(classes, positives, negatives, model)
-    else:
-        # no meaning
-        loss = torch.zeros([]).to(DEVICE)
-    return loss, classes
-
-
-def on_sample(state):
-    state['sample'].append(state['train'])
-
-
-def reset_meters():
-    meter_loss.reset()
-    meter_recall.reset()
-
-
-def on_forward(state):
-    meter_loss.add(state['loss'].item())
-
-
-def on_start_epoch(state):
-    reset_meters()
-    state['iterator'] = tqdm(state['iterator'])
-
-
-def on_end_epoch(state):
-    loss_logger.log(state['epoch'], meter_loss.value()[0], name='train')
-    results['train_loss'].append(meter_loss.value()[0])
-    desc = '[Epoch %d] Training Loss: %.4f' % (state['epoch'], meter_loss.value()[0])
-
-    # TODO
-    meter_recall.add(state['output'].detach().cpu(), state['sample'][1])
-
-    for index, k in enumerate(recall_ids):
-        recall_logger.log(state['epoch'], meter_recall.value()[index], name='train_recall_{}'.format(str(k)))
-        results['train_recall_{}'.format(str(k))].append(meter_recall.value()[index])
-        desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
-    print(desc)
-
-    reset_meters()
-
-    with torch.no_grad():
-        engine.test(processor, test_loader)
-
-    loss_logger.log(state['epoch'], meter_loss.value()[0], name='test')
-    for index, k in enumerate(recall_ids):
-        recall_logger.log(state['epoch'], meter_recall.value()[index], name='test_recall_{}'.format(str(k)))
-    results['test_loss'].append(meter_loss.value()[0])
-    for index, k in enumerate(recall_ids):
-        results['test_recall_{}'.format(str(k))].append(meter_recall.value()[index])
-    desc = '[Epoch %d] Testing Loss: %.4f' % (state['epoch'], meter_loss.value()[0])
-    for index, k in enumerate(recall_ids):
-        desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
-    print(desc)
-
-    # save model
-    torch.save(model.state_dict(), 'epochs/%s_%d.pth' % (DATA_TYPE, state['epoch']))
-    # save statistics
-    data_frame = pd.DataFrame(data=results, index=range(1, state['epoch'] + 1))
-    data_frame.to_csv('statistics/{}_results.csv'.format(DATA_TYPE), index_label='epoch')
+# def reset_meters():
+#     meter_loss.reset()
+#     meter_recall.reset()
+#
+#
+# def on_end_epoch(state):
+#
+#     # TODO
+#     meter_recall.add(state['output'].detach().cpu(), state['sample'][1])
+#
+#     for index, k in enumerate(recall_ids):
+#         recall_logger.log(state['epoch'], meter_recall.value()[index], name='train_recall_{}'.format(str(k)))
+#         results['train_recall_{}'.format(str(k))].append(meter_recall.value()[index])
+#         desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
+#
+#     reset_meters()
+#
+#     loss_logger.log(state['epoch'], meter_loss.value()[0], name='test')
+#     for index, k in enumerate(recall_ids):
+#         recall_logger.log(state['epoch'], meter_recall.value()[index], name='test_recall_{}'.format(str(k)))
+#     results['test_loss'].append(meter_loss.value()[0])
+#     for index, k in enumerate(recall_ids):
+#         results['test_recall_{}'.format(str(k))].append(meter_recall.value()[index])
+#     desc = '[Epoch %d] Testing Loss: %.4f' % (state['epoch'], meter_loss.value()[0])
+#     for index, k in enumerate(recall_ids):
+#         desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[index])
+#     print(desc)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Image Retrieval Model')
-    parser.add_argument('--data_type', default='cars', type=str, choices=['cars', 'cub', 'sop'], help='dataset type')
+    parser.add_argument('--data_name', default='cars', type=str, choices=['cars', 'cub', 'sop'], help='dataset name')
     parser.add_argument('--recalls', default='1,2,4,8', type=str, help='selected recall')
     parser.add_argument('--batch_size', default=32, type=int, help='training batch size')
     parser.add_argument('--num_epochs', default=100, type=int, help='train epoch number')
 
     opt = parser.parse_args()
 
-    DATA_TYPE, RECALLS, BATCH_SIZE, NUM_EPOCH = opt.data_type, opt.recalls, opt.batch_size, opt.num_epochs
+    DATA_NAME, RECALLS, BATCH_SIZE, NUM_EPOCH = opt.data_name, opt.recalls, opt.batch_size, opt.num_epochs
     recall_ids = [int(k) for k in RECALLS.split(',')]
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    results = {'train_loss': [], 'test_loss': []}
+    results = {'train_loss': []}
     for k in recall_ids:
         results['train_recall_{}'.format(str(k))], results['test_recall_{}'.format(str(k))] = [], []
 
-    train_loader, test_loader = utils.load_data(data_type=DATA_TYPE, batch_size=BATCH_SIZE)
+    train_set = utils.RetrievalDataset(DATA_NAME, data_type='train')
+    val_set = utils.RetrievalDataset(DATA_NAME, data_type='val')
+    test_set = utils.RetrievalDataset(DATA_NAME, data_type='test')
+    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=8, shuffle=True)
+    val_loader = DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=8, shuffle=False)
+    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, num_workers=8, shuffle=False)
+
+    # load data to memory
+    val_database, test_database = [], []
+    for img, label, index in DataLoader(train_set, batch_size=512, num_workers=8, shuffle=False):
+        val_database.append(img)
+    val_database = torch.stack(val_database).to(DEVICE)
+    for img, label, index in DataLoader(test_set, batch_size=512, num_workers=8, shuffle=False):
+        test_database.append(img)
+    test_database = torch.stack(test_database).to(DEVICE)
+
     model = Model().to(DEVICE)
     loss_criterion = utils.DiverseLoss()
     optimizer = optim.Adam(params=model.parameters())
     print("# parameters:", sum(param.numel() for param in model.parameters()))
 
-    engine = Engine()
     meter_loss = tnt.meter.AverageValueMeter()
     meter_recall = utils.RecallMeter(topk=recall_ids)
+    loss_logger = VisdomPlotLogger('line', env=DATA_NAME, opts={'title': 'Loss'})
+    recall_logger = VisdomPlotLogger('line', env=DATA_NAME, opts={'title': 'Recall'})
 
-    loss_logger = VisdomPlotLogger('line', env=DATA_TYPE, opts={'title': 'Loss'})
-    recall_logger = VisdomPlotLogger('line', env=DATA_TYPE, opts={'title': 'Recall'})
+    for epoch in range(1, NUM_EPOCH + 1):
+        # train loop
+        train_progress, num_data = tqdm(train_loader), 0
+        model.train()
+        for batch_idx, img, positives, negatives in enumerate(train_progress):
+            num_data += img.size(0)
+            img, positives, negatives = img.to(DEVICE), positives.to(DEVICE), negatives.to(DEVICE)
+            optimizer.zero_grad()
+            out = model(img)
+            loss = loss_criterion(out, positives, negatives, model)
+            loss.backward()
+            optimizer.step()
+            meter_loss.add(loss.item())
+            train_progress.set_description('[Train Epoch: {}---{}/{} Loss: {:.6f}]'.format(
+                epoch, num_data, len(train_loader.dataset), meter_loss.value()[0]))
+        loss_logger.log(epoch, meter_loss.value()[0], name='train')
+        results['train_loss'].append(meter_loss.value()[0])
+        print('[Train Epoch: {} Loss: {:.6f}]'.format(epoch, meter_loss.value()[0]))
+        # compute recall for train data
+        val_progress, num_data = tqdm(val_loader), 0
+        model.eval()
+        for batch_idx, img, label, index in enumerate(val_progress):
+            num_data += img.size(0)
+            img = img.to(DEVICE)
 
-    engine.hooks['on_sample'] = on_sample
-    engine.hooks['on_forward'] = on_forward
-    engine.hooks['on_start_epoch'] = on_start_epoch
-    engine.hooks['on_end_epoch'] = on_end_epoch
-
-    engine.train(processor, train_loader, maxepoch=NUM_EPOCH, optimizer=optimizer)
+        # save model
+        torch.save(model.state_dict(), 'epochs/%s_%d.pth' % (DATA_NAME, epoch))
+        # save statistics
+        data_frame = pd.DataFrame(data=results, index=range(1, epoch))
+        data_frame.to_csv('statistics/{}_results.csv'.format(DATA_NAME), index_label='epoch')

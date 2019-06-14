@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 from torchnet.meter import meter
 from torchvision import transforms
 
@@ -85,23 +85,26 @@ class DiverseLoss(nn.Module):
 
 
 class RetrievalDataset(Dataset):
-    def __init__(self, data_type, train=True, k=10):
-        if train:
-            data = read_json('data/{}/train.json'.format(data_type))
+    def __init__(self, data_name, data_type='train', k=10):
+        if data_type == 'train':
+            data = read_json('data/{}/train.json'.format(data_name))
             self.transform = transform_train
-        else:
-            data = read_json('data/{}/test.json'.format(data_type))
+        elif data_type == 'val':
+            data = read_json('data/{}/train.json'.format(data_name))
             self.transform = transform_test
-        self.train = train
+        else:
+            data = read_json('data/{}/test.json'.format(data_name))
+            self.transform = transform_test
+        self.data_type = data_type
         self.images, self.labels = list(data.keys()), list(data.values())
-        self.classes = read_json('data/{}/class.json'.format(data_type))
+        self.classes = read_json('data/{}/class.json'.format(data_name))
         self.k, self.indexes = k, set(range(len(self.images)))
 
     def __getitem__(self, index):
         img_path, label = self.images[index], self.labels[index]
         img = self.transform(Image.open(img_path).convert('RGB'))
 
-        if self.train:
+        if self.data_type == 'train':
             positive_index = set(np.where(np.array(self.labels) == label)[0].tolist())
             negative_index = self.indexes - positive_index
             # make sure the search database don't contain itself
@@ -117,21 +120,8 @@ class RetrievalDataset(Dataset):
             positives, negatives = torch.stack(positives), torch.stack(negatives)
             return img, positives, negatives
         else:
-            test_index = self.indexes - {index}
-            test_database = list(test_index)
-            tests = []
-            for i in test_database:
-                tests.append(self.transform(Image.open(self.images[i]).convert('RGB')))
-            tests = torch.stack(tests)
-            return img, tests
+            return img, label, index
 
     def __len__(self):
         return len(self.images)
 
-
-def load_data(data_type, batch_size=32):
-    train_set = RetrievalDataset(data_type, train=True)
-    test_set = RetrievalDataset(data_type, train=False)
-    train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=8, shuffle=True)
-    test_loader = DataLoader(test_set, batch_size=batch_size, num_workers=8, shuffle=False)
-    return train_loader, test_loader

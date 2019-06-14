@@ -28,7 +28,7 @@ You should download these datasets by yourself, and extract them into `data` dir
 ```
 visdom -logging_level WARNING & python train.py --num_epochs 200
 optional arguments:
---data_type                   dataset type [default value is 'cars'](choices=['cars', 'cub', 'sop'])
+--data_name                   dataset name [default value is 'cars'](choices=['cars', 'cub', 'sop'])
 --recalls                     selected recall [default value is '1,2,4,8']
 --batch_size                  train batch size [default value is 32]
 --num_epochs                  train epochs number [default value is 100]
