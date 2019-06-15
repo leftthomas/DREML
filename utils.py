@@ -27,11 +27,9 @@ class RecallMeter(meter.Meter):
         self.n = 0
 
     def add(self, output, index, label, database):
-        topk = self.topk
-        maxk = int(topk[-1])  # seems like Python3 wants int and not np.int64
         no = output.shape[0]
 
-        pred = torch.from_numpy(output).topk(maxk, 1, True, True)[1].numpy()
+        pred = F.cosine_similarity(output, ).topk(maxk, 1, True, True)[1].numpy()
         correct = pred == target[:, np.newaxis].repeat(pred.shape[1], 1)
 
         for k in topk:

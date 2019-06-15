@@ -31,8 +31,8 @@ if __name__ == '__main__':
     val_set = utils.RetrievalDataset(DATA_NAME, data_type='val')
     test_set = utils.RetrievalDataset(DATA_NAME, data_type='test')
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=1, shuffle=False)
-    test_loader = DataLoader(test_set, batch_size=1, shuffle=False)
+    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
 
     # load data to memory
     print('load data to memory, it may take a while')
