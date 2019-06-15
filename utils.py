@@ -28,9 +28,12 @@ class RecallMeter(meter.Meter):
 
     def add(self, output, index, label, database):
         no = output.shape[0]
+        output = output.unsqueeze(dim=1)
+        database = database.unsqueeze(dim=0)
 
-        pred = F.cosine_similarity(output, ).topk(maxk, 1, True, True)[1].numpy()
-        correct = pred == target[:, np.newaxis].repeat(pred.shape[1], 1)
+        pred = F.cosine_similarity(output, database, dim=-1)
+        # a.topk(maxk, 1, True, True)[1].numpy()
+        # correct = pred == target[:, np.newaxis].repeat(pred.shape[1], 1)
 
         for k in topk:
             self.sum[k] += no - correct[:, 0:k].sum()
