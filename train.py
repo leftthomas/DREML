@@ -126,5 +126,5 @@ if __name__ == '__main__':
         # save model
         torch.save(model.state_dict(), 'epochs/%s_%d.pth' % (DATA_NAME, epoch))
         # save statistics
-        data_frame = pd.DataFrame(data=results, index=range(1, epoch))
+        data_frame = pd.DataFrame(data=results, index=range(1, epoch + 1))
         data_frame.to_csv('statistics/{}_results.csv'.format(DATA_NAME), index_label='epoch')
