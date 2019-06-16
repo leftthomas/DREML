@@ -16,37 +16,32 @@ transform_test = transforms.Compose([transforms.Resize(224), transforms.CenterCr
 
 
 class RecallMeter(meter.Meter):
-    def __init__(self, topk=[1], accuracy=False):
+    def __init__(self, topk=[1]):
         super(RecallMeter, self).__init__()
         self.topk = np.sort(topk)
-        self.accuracy = accuracy
         self.reset()
 
     def reset(self):
         self.sum = {v: 0 for v in self.topk}
         self.n = 0
 
-    def add(self, output, index, label, database):
+    def add(self, output, index, label, database, database_labels):
         no = output.shape[0]
-        output = output.unsqueeze(dim=1)
+        output, index, label = output.unsqueeze(dim=1), index.unsqueeze(dim=-1), label.unsqueeze(dim=-1)
         database = database.unsqueeze(dim=0)
 
-        pred = F.cosine_similarity(output, database, dim=-1)
-        # a.topk(maxk, 1, True, True)[1].numpy()
-        # correct = pred == target[:, np.newaxis].repeat(pred.shape[1], 1)
-
-        for k in topk:
-            self.sum[k] += no - correct[:, 0:k].sum()
+        pred = torch.argsort(torch.abs(output.norm(dim=-1) - database.norm(dim=-1)))
+        # make sure it don't contain itself
+        pred = pred[pred != index].view(no, -1)
+        for k in self.topk:
+            recalled = pred[:, 0:k]
+            correct = (database_labels[recalled] == label).any(dim=-1)
+            self.sum[k] += correct.sum().item()
         self.n += no
 
     def value(self, k=-1):
         if k != -1:
-            assert k in self.sum.keys(), \
-                'invalid k (this k was not provided at construction time)'
-            if self.accuracy:
-                return (1. - float(self.sum[k]) / self.n) * 100.0
-            else:
-                return float(self.sum[k]) / self.n * 100.0
+            return float(self.sum[k]) / self.n * 100.0
         else:
             return [self.value(k_) for k_ in self.topk]
 
@@ -105,7 +100,7 @@ class RetrievalDataset(Dataset):
             positives, negatives = torch.stack(positives), torch.stack(negatives)
             return img, positives, negatives
         else:
-            return img, label, index
+            return img, int(label), index
 
     def __len__(self):
         return len(self.images)

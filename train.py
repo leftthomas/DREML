@@ -36,11 +36,15 @@ if __name__ == '__main__':
 
     # load data to memory
     print('load data to memory, it may take a while')
-    val_database, test_database = [], []
+    val_database, val_labels, test_database, test_labels = [], [], [], []
     for img, label, index in DataLoader(val_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=False):
         val_database.append(img)
+        val_labels.append(label)
+    val_labels = torch.cat(val_labels)
     for img, label, index in DataLoader(test_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=False):
         test_database.append(img)
+        test_labels.append(label)
+    test_labels = torch.cat(test_labels)
 
     model = Model().to(DEVICE)
     loss_criterion = utils.DiverseLoss()
@@ -77,15 +81,14 @@ if __name__ == '__main__':
             model.eval()
             val_features = []
             for data in val_database:
-                val_features.append(model(data))
+                val_features.append(model(data.to(DEVICE)))
             val_features = torch.cat(val_features)
             # compute recall for train data
             val_progress, num_data = tqdm(val_loader), 0
             for img, label, index in val_progress:
                 num_data += img.size(0)
-                img = img.to(DEVICE)
-                out = model(img)
-                meter_recall.add(out.detach().cpu(), index, list(label), val_features)
+                out = model(img.to(DEVICE))
+                meter_recall.add(out.detach().cpu(), index, label, val_features.detach().cpu(), val_labels)
                 desc = 'Val Epoch: {}---{}/{}'.format(epoch, num_data, len(val_set))
                 for i, k in enumerate(recall_ids):
                     desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
@@ -100,15 +103,14 @@ if __name__ == '__main__':
 
             test_features = []
             for data in test_database:
-                test_features.append(model(data))
+                test_features.append(model(data.to(DEVICE)))
             test_features = torch.cat(test_features)
             # compute recall for test data
             test_progress, num_data = tqdm(test_loader), 0
             for img, label, index in test_progress:
                 num_data += img.size(0)
-                img = img.to(DEVICE)
-                out = model(img)
-                meter_recall.add(out.detach().cpu(), index, list(label), test_features)
+                out = model(img.to(DEVICE))
+                meter_recall.add(out.detach().cpu(), index, label, test_features.detach().cpu(), test_labels)
                 desc = 'Test Epoch: {}---{}/{}'.format(epoch, num_data, len(test_set))
                 for i, k in enumerate(recall_ids):
                     desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
