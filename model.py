@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-from torchvision.models.resnet import ResNet, BasicBlock
+from torchvision.models.resnet import resnet18
 
 
 class CompositionalEmbedding(nn.Module):
@@ -91,7 +91,7 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
         # backbone
-        basic_model, layers = ResNet(BasicBlock, [2, 2, 2, 2]), []
+        basic_model, layers = resnet18(pretrained=True), []
         for name, module in basic_model.named_children():
             if isinstance(module, nn.Linear) or isinstance(module, nn.AdaptiveAvgPool2d):
                 continue

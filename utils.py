@@ -17,10 +17,10 @@ def get_transform(data_name, data_type):
     normalize = transforms.Normalize(rgb_mean[data_name], rgb_std[data_name])
     if data_type == 'train':
         transform = transforms.Compose(
-            [transforms.Resize(224), transforms.RandomCrop(224), transforms.ToTensor(), normalize])
+            [transforms.Resize(256), transforms.RandomCrop(256), transforms.ToTensor(), normalize])
     else:
         transform = transforms.Compose(
-            [transforms.Resize(224), transforms.CenterCrop(224), transforms.ToTensor(), normalize])
+            [transforms.Resize(256), transforms.CenterCrop(256), transforms.ToTensor(), normalize])
     return transform
 
 
@@ -73,8 +73,8 @@ class RetrievalDataset(Dataset):
         data = read_json('data/{}/{}_images.json'.format(data_name, data_type))
         self.transform = get_transform(data_name, data_type)
         self.images, self.labels = list(data.keys()), list(data.values())
-        classes, labels = sorted(set(data.values())), {}
-        for index, label in enumerate(classes):
+        self.classes, labels = sorted(set(data.values())), {}
+        for index, label in enumerate(self.classes):
             labels[label] = index
         for index, label in enumerate(self.labels):
             self.labels[index] = labels[label]
