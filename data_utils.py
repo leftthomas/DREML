@@ -23,13 +23,8 @@ def read_txt(path):
 
 
 def process_car_data(data_path):
-    train_images, test_images, class_names = {}, {}, {}
-    annos_mat = loadmat('{}/cars_annos.mat'.format(data_path))
-    classes, annotations = annos_mat['class_names'][0], annos_mat['annotations'][0]
-    for index, class_name in enumerate(classes):
-        class_names[index + 1] = str(class_name[0])
-    write_json(class_names, '{}/{}'.format(data_path, class_name_json))
-
+    train_images, test_images = {}, {}
+    annotations = loadmat('{}/cars_annos.mat'.format(data_path))['annotations'][0]
     for img in annotations:
         img_name, img_label = str(img[0][0]), str(img[-2][0][0])
         if int(img_label) < 99:
@@ -41,8 +36,6 @@ def process_car_data(data_path):
 
 
 def process_cub_data(data_path):
-    classes = read_txt('{}/classes.txt'.format(data_path))
-    write_json(classes, '{}/{}'.format(data_path, class_name_json))
     images = read_txt('{}/images.txt'.format(data_path))
     labels = read_txt('{}/image_class_labels.txt'.format(data_path))
     train_images, test_images = {}, {}
@@ -56,28 +49,22 @@ def process_cub_data(data_path):
 
 
 def process_sop_data(data_path):
-    class_names, classes, train_images, test_images = set(), {}, {}, {}
+    train_images, test_images = {}, {}
     for index, line in enumerate(open('{}/Ebay_train.txt'.format(data_path), 'r', encoding='utf-8')):
         if index != 0:
             _, label, _, img_name = line.split()
             train_images['{}/{}'.format(data_path, img_name)] = label
-            class_names.add(img_name.split('/')[0].replace('_final', ''))
     write_json(train_images, '{}/{}'.format(data_path, train_image_json))
 
     for index, line in enumerate(open('{}/Ebay_test.txt'.format(data_path), 'r', encoding='utf-8')):
         if index != 0:
             _, label, _, img_name = line.split()
             test_images['{}/{}'.format(data_path, img_name)] = label
-            class_names.add(img_name.split('/')[0].replace('_final', ''))
     write_json(test_images, '{}/{}'.format(data_path, test_image_json))
-
-    for index, class_name in enumerate(sorted(class_names)):
-        classes[index + 1] = class_name
-    write_json(classes, '{}/{}'.format(data_path, class_name_json))
 
 
 if __name__ == '__main__':
-    train_image_json, test_image_json, class_name_json = 'train_images.json', 'test_images.json', 'class_names.json'
+    train_image_json, test_image_json = 'train_images.json', 'test_images.json'
     process_car_data('data/cars')
     process_cub_data('data/cub')
     process_sop_data('data/sop')
