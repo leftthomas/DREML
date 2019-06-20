@@ -31,17 +31,17 @@ if __name__ == '__main__':
     val_set = utils.RetrievalDataset(DATA_NAME, data_type='val')
     test_set = utils.RetrievalDataset(DATA_NAME, data_type='test')
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
-    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False)
+    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=False)
+    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=False)
 
     # load data to memory
     print('load data to memory, it may take a while')
     val_database, val_labels, test_database, test_labels = [], [], [], []
-    for img, label, index in DataLoader(val_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=False):
+    for img, label, index in val_loader:
         val_database.append(img)
         val_labels.append(label)
     val_labels = torch.cat(val_labels)
-    for img, label, index in DataLoader(test_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=False):
+    for img, label, index in test_loader:
         test_database.append(img)
         test_labels.append(label)
     test_labels = torch.cat(test_labels)
@@ -73,7 +73,6 @@ if __name__ == '__main__':
                 epoch, num_data, len(train_set), meter_loss.value()[0]))
         loss_logger.log(epoch, meter_loss.value()[0], name='train')
         results['train_loss'].append(meter_loss.value()[0])
-        print('Train Epoch: {} Loss: {:.2f}'.format(epoch, meter_loss.value()[0]))
         meter_loss.reset()
 
         # test loop
@@ -93,12 +92,9 @@ if __name__ == '__main__':
                 for i, k in enumerate(recall_ids):
                     desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
                 val_progress.set_description(desc)
-            desc = 'Val Epoch: {}'.format(epoch)
             for i, k in enumerate(recall_ids):
                 recall_logger.log(epoch, meter_recall.value()[i], name='train_recall_{}'.format(str(k)))
                 results['train_recall_{}'.format(str(k))].append(meter_recall.value()[i])
-                desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
-            print(desc)
             meter_recall.reset()
 
             test_features = []
@@ -115,16 +111,13 @@ if __name__ == '__main__':
                 for i, k in enumerate(recall_ids):
                     desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
                 test_progress.set_description(desc)
-            desc = 'Test Epoch: {}'.format(epoch)
             for i, k in enumerate(recall_ids):
                 recall_logger.log(epoch, meter_recall.value()[i], name='test_recall_{}'.format(str(k)))
                 results['test_recall_{}'.format(str(k))].append(meter_recall.value()[i])
-                desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
-            print(desc)
             meter_recall.reset()
 
         # save model
-        torch.save(model.state_dict(), 'epochs/%s_%d.pth' % (DATA_NAME, epoch))
+        torch.save(model.state_dict(), 'epochs/{}_{}.pth'.format(DATA_NAME, epoch))
         # save statistics
         data_frame = pd.DataFrame(data=results, index=range(1, epoch + 1))
         data_frame.to_csv('statistics/{}_results.csv'.format(DATA_NAME), index_label='epoch')
