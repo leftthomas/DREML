@@ -44,16 +44,15 @@ def process_cub_data(data_path):
     classes = read_txt('{}/classes.txt'.format(data_path))
     write_json(classes, '{}/{}'.format(data_path, class_name_json))
     images = read_txt('{}/images.txt'.format(data_path))
-    splits = read_txt('{}/train_test_split.txt'.format(data_path))
     labels = read_txt('{}/image_class_labels.txt'.format(data_path))
-    trains, tests = {}, {}
-    for index, img_name in enumerate(images.values()):
-        if splits[str(index + 1)] == '1':
-            trains['{}/{}'.format(data_path, img_name)] = labels[str(index + 1)]
+    train_images, test_images = {}, {}
+    for img_id, img_name in images.items():
+        if int(labels[img_id]) < 101:
+            train_images['{}/images/{}'.format(data_path, img_name)] = labels[img_id]
         else:
-            tests['{}/{}'.format(data_path, img_name)] = labels[str(index + 1)]
-    write_json(trains, '{}/{}'.format(data_path, train_image_json))
-    write_json(tests, '{}/{}'.format(data_path, test_image_json))
+            test_images['{}/images/{}'.format(data_path, img_name)] = labels[img_id]
+    write_json(train_images, '{}/{}'.format(data_path, train_image_json))
+    write_json(test_images, '{}/{}'.format(data_path, test_image_json))
 
 
 def process_sop_data(data_path):
@@ -78,7 +77,7 @@ def process_sop_data(data_path):
 
 if __name__ == '__main__':
     train_image_json, test_image_json, class_name_json = 'train_images.json', 'test_images.json', 'class_names.json'
-    process_car_data('data/cars')
-    process_cub_data('data/cub')
+    # process_car_data('data/cars')
+    # process_cub_data('data/cub')
     process_sop_data('data/sop')
 
