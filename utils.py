@@ -11,8 +11,19 @@ from torchvision import transforms
 
 from data_utils import read_json
 
-transform_train = transforms.Compose([transforms.Resize(224), transforms.RandomCrop(224), transforms.ToTensor()])
-transform_test = transforms.Compose([transforms.Resize(224), transforms.CenterCrop(224), transforms.ToTensor()])
+rgb_mean = {'cars': [0.4853, 0.4965, 0.4295], 'cub': [0.4707, 0.4601, 0.4549], 'sop': [0.5807, 0.5396, 0.5044]}
+rgb_std = {'cars': [0.2237, 0.2193, 0.2568], 'cub': [0.2767, 0.2760, 0.2850], 'sop': [0.2901, 0.2974, 0.3095]}
+
+
+def get_transform(data_name, data_type):
+    normalize = transforms.Normalize(rgb_mean[data_name], rgb_std[data_name])
+    if data_type == 'train':
+        transform = transforms.Compose(
+            [transforms.Resize(224), transforms.RandomCrop(224), transforms.ToTensor(), normalize])
+    else:
+        transform = transforms.Compose(
+            [transforms.Resize(224), transforms.CenterCrop(224), transforms.ToTensor(), normalize])
+    return transform
 
 
 class RecallMeter(meter.Meter):
@@ -68,14 +79,13 @@ class RetrievalDataset(Dataset):
     def __init__(self, data_name, data_type='train', k=10):
         if data_type == 'train':
             data = read_json('data/{}/train.json'.format(data_name))
-            self.transform = transform_train
         elif data_type == 'val':
             data = read_json('data/{}/train.json'.format(data_name))
-            self.transform = transform_test
         else:
             data = read_json('data/{}/test.json'.format(data_name))
-            self.transform = transform_test
+
         self.data_type = data_type
+        self.transform = get_transform(data_name, data_type)
         self.images, self.labels = list(data.keys()), list(data.values())
         self.classes = read_json('data/{}/class.json'.format(data_name))
         self.k, self.indexes = k, set(range(len(self.images)))
@@ -104,4 +114,3 @@ class RetrievalDataset(Dataset):
 
     def __len__(self):
         return len(self.images)
-
