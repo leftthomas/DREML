@@ -26,6 +26,18 @@ def get_transform(data_name, data_type):
     return transform
 
 
+class DiverseLoss(nn.Module):
+    def __init__(self):
+        super(DiverseLoss, self).__init__()
+
+    def forward(self, output, target):
+        batch_size = output.size(0)
+        # loss
+        dist = -F.log_softmax(output, dim=-1)
+        loss = dist[torch.arange(batch_size), target].mean()
+        return loss
+
+
 class RecallMeter(meter.Meter):
     def __init__(self, topk=[1]):
         super(RecallMeter, self).__init__()
@@ -55,24 +67,6 @@ class RecallMeter(meter.Meter):
             return float(self.sum[k]) / self.n * 100.0
         else:
             return [self.value(k_) for k_ in self.topk]
-
-
-class DiverseLoss(nn.Module):
-    def __init__(self):
-        super(DiverseLoss, self).__init__()
-
-    def forward(self, classes, positives, negatives, model):
-        classes = classes.unsqueeze(dim=1)
-        p_samples = positives.view(-1, *positives.size()[2:])
-        n_samples = negatives.view(-1, *negatives.size()[2:])
-        p_out, n_out = model(p_samples), model(n_samples)
-        p_out = p_out.view(classes.size(0), -1, p_out.size(-1))
-        n_out = n_out.view(classes.size(0), -1, n_out.size(-1))
-        p_loss = torch.abs(classes.norm(dim=-1) - p_out.norm(dim=-1)).mean(dim=-1)
-        n_loss = torch.abs(classes.norm(dim=-1) - n_out.norm(dim=-1)).mean(dim=-1).clamp(min=1e-8).pow(-1)
-        p_direction_loss = (1 + F.cosine_similarity(classes, p_out, dim=-1)).mean(dim=-1)
-        loss = p_loss + n_loss + p_direction_loss
-        return loss.mean()
 
 
 class RetrievalDataset(Dataset):
