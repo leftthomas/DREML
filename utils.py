@@ -47,7 +47,7 @@ class DiverseLoss(nn.Module):
 class RecallMeter(meter.Meter):
     def __init__(self, topk=[1]):
         super(RecallMeter, self).__init__()
-        self.topk = np.sort(topk)
+        self.topk = topk
         self.reset()
 
     def reset(self):

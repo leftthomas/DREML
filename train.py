@@ -25,7 +25,7 @@ if __name__ == '__main__':
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     results = {'train_loss': []}
     for k in recall_ids:
-        results['train_recall_{}'.format(str(k))], results['test_recall_{}'.format(str(k))] = [], []
+        results['train_recall_{}'.format(k)], results['test_recall_{}'.format(k)] = [], []
 
     train_set = utils.RetrievalDataset(DATA_NAME, data_type='train')
     val_set = utils.RetrievalDataset(DATA_NAME, data_type='val')
@@ -90,11 +90,11 @@ if __name__ == '__main__':
                 meter_recall.add(out.detach().cpu(), index, label, val_features.detach().cpu(), val_labels)
                 desc = 'Val Epoch: {}---{}/{}'.format(epoch, num_data, len(val_set))
                 for i, k in enumerate(recall_ids):
-                    desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
+                    desc += ' Recall@{}: {:.2f}%'.format(k, meter_recall.value()[i])
                 val_progress.set_description(desc)
             for i, k in enumerate(recall_ids):
-                recall_logger.log(epoch, meter_recall.value()[i], name='train_recall_{}'.format(str(k)))
-                results['train_recall_{}'.format(str(k))].append(meter_recall.value()[i])
+                recall_logger.log(epoch, meter_recall.value()[i], name='train_recall_{}'.format(k))
+                results['train_recall_{}'.format(k)].append(meter_recall.value()[i])
             meter_recall.reset()
 
             test_features = []
@@ -109,11 +109,11 @@ if __name__ == '__main__':
                 meter_recall.add(out.detach().cpu(), index, label, test_features.detach().cpu(), test_labels)
                 desc = 'Test Epoch: {}---{}/{}'.format(epoch, num_data, len(test_set))
                 for i, k in enumerate(recall_ids):
-                    desc += ' Recall@%d: %.2f%%' % (k, meter_recall.value()[i])
+                    desc += ' Recall@{}: {:.2f}%'.format(k, meter_recall.value()[i])
                 test_progress.set_description(desc)
             for i, k in enumerate(recall_ids):
-                recall_logger.log(epoch, meter_recall.value()[i], name='test_recall_{}'.format(str(k)))
-                results['test_recall_{}'.format(str(k))].append(meter_recall.value()[i])
+                recall_logger.log(epoch, meter_recall.value()[i], name='test_recall_{}'.format(k))
+                results['test_recall_{}'.format(k)].append(meter_recall.value()[i])
             meter_recall.reset()
 
         # save model
