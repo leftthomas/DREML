@@ -31,9 +31,10 @@ class DiverseLoss(nn.Module):
 
     def forward(self, output, positives, negatives, model):
         output = output.unsqueeze(dim=1)
-        p_samples = positives.view(-1, *positives.size()[2:])
-        n_samples = negatives.view(-1, *negatives.size()[2:])
-        p_out, n_out = model(p_samples), model(n_samples)
+        p_samples = positives.view(-1, *positives.size()[2:]).contiguous()
+        n_samples = negatives.view(-1, *negatives.size()[2:]).contiguous()
+        p_out = model(p_samples)
+        n_out = model(n_samples)
         p_out = p_out.view(output.size(0), -1, p_out.size(-1))
         n_out = n_out.view(output.size(0), -1, n_out.size(-1))
         p_loss = torch.abs(output.norm(dim=-1) - p_out.norm(dim=-1)).mean(dim=-1)
