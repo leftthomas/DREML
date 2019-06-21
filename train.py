@@ -47,7 +47,7 @@ if __name__ == '__main__':
     test_labels = torch.cat(test_labels)
 
     model = Model().to(DEVICE)
-    loss_criterion = utils.DiverseLoss().to(DEVICE)
+    loss_criterion = utils.DiverseLoss()
     optimizer = optim.Adam(params=model.parameters())
     print("# parameters:", sum(param.numel() for param in model.parameters()))
 
