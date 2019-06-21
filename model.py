@@ -99,7 +99,7 @@ class Model(nn.Module):
         self.raw_features = nn.Sequential(*layers)
 
         # feature
-        self.compact_features = nn.Linear(7 * 7 * 512, 512)
+        self.compact_features = nn.Linear(14 * 14 * 512, 512)
         # self.compact_features = CapsuleLinear(out_capsules=16, in_length=64, out_length=32)
 
         # embedding
