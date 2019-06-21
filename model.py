@@ -1,112 +1,154 @@
-import math
-
+"""
+SE-ResNet, SE_ResNeXt codes are gently borrowed from
+https://github.com/Cadene/pretrained-models.pytorch/blob/master/pretrainedmodels/models/senet.py
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.parameter import Parameter
-from torchvision.models.resnet import resnet18
+from torchvision import models
+
+from senet import se_resnext101_32x4d
 
 
-class CompositionalEmbedding(nn.Module):
-    r"""A simple compositional codeword and codebook that store embeddings.
+class BaseNetwork(nn.Module):
+    """ Load Pretrained Module """
 
-     Args:
-        num_embeddings (int): size of the dictionary of embeddings
-        embedding_dim (int): size of each embedding vector
-        num_codebook (int): size of the codebook of embeddings
-        num_codeword (int, optional): size of the codeword of embeddings
-        weighted (bool, optional): weighted version of unweighted version
-        return_code (bool, optional): return code or not
-
-     Shape:
-         - Input: (LongTensor): (N, W), W = number of indices to extract per mini-batch
-         - Output: (Tensor): (N, W, embedding_dim)
-
-     Attributes:
-         - code (Tensor): the learnable weights of the module of shape
-              (num_embeddings, num_codebook, num_codeword)
-         - codebook (Tensor): the learnable weights of the module of shape
-              (num_codebook, num_codeword, embedding_dim)
-
-     Examples::
-         >>> m = CompositionalEmbedding(200, 64, 16, 32, weighted=False)
-         >>> a = torch.randperm(128).view(16, -1)
-         >>> output = m(a)
-         >>> print(output.size())
-         torch.Size([16, 8, 64])
-     """
-
-    def __init__(self, num_embeddings, embedding_dim, num_codebook, num_codeword=None, num_repeat=10, weighted=True,
-                 return_code=False):
-        super(CompositionalEmbedding, self).__init__()
-        self.num_embeddings = num_embeddings
+    def __init__(self, model_name, embedding_dim, feature_extracting, use_pretrained):
+        super(BaseNetwork, self).__init__()
+        self.model_name = model_name
         self.embedding_dim = embedding_dim
-        self.num_codebook = num_codebook
-        self.num_repeat = num_repeat
-        self.weighted = weighted
-        self.return_code = return_code
+        self.feature_extracting = feature_extracting
+        self.use_pretrained = use_pretrained
 
-        if num_codeword is None:
-            num_codeword = math.ceil(math.pow(num_embeddings, 1 / num_codebook))
-        self.num_codeword = num_codeword
-        self.code = Parameter(torch.Tensor(num_embeddings, num_codebook, num_codeword))
-        self.codebook = Parameter(torch.Tensor(num_codebook, num_codeword, embedding_dim))
-
-        nn.init.normal_(self.code)
-        nn.init.normal_(self.codebook)
-
-    def forward(self, input):
-        batch_size = input.size(0)
-        index = input.view(-1)
-        code = self.code.index_select(dim=0, index=index)
-        if self.weighted:
-            # reweight, do softmax, make sure the sum of weight about each book to 1
-            code = F.softmax(code, dim=-1)
-            out = (code[:, :, None, :] @ self.codebook[None, :, :, :]).squeeze(dim=-2).sum(dim=1)
-        else:
-            # because Gumbel SoftMax works in a stochastic manner, needs to run several times to
-            # get more accurate embedding
-            code = (torch.sum(torch.stack([F.gumbel_softmax(code) for _ in range(self.num_repeat)]), dim=0)).argmax(
-                dim=-1)
-            out = []
-            for index in range(self.num_codebook):
-                out.append(self.codebook[index, :, :].index_select(dim=0, index=code[:, index]))
-            out = torch.sum(torch.stack(out), dim=0)
-            code = F.one_hot(code, num_classes=self.num_codeword)
-
-        out = out.view(batch_size, -1, self.embedding_dim)
-        code = code.view(batch_size, -1, self.num_codebook, self.num_codeword)
-        if self.return_code:
-            return out, code
-        else:
-            return out
-
-    def __repr__(self):
-        return self.__class__.__name__ + ' (' + str(self.num_embeddings) + ', ' + str(self.embedding_dim) + ')'
-
-
-class Model(nn.Module):
-
-    def __init__(self):
-        super(Model, self).__init__()
-
-        # backbone
-        basic_model, layers = resnet18(pretrained=True), []
-        for name, module in basic_model.named_children():
-            if isinstance(module, nn.Linear) or isinstance(module, nn.AdaptiveAvgPool2d):
-                continue
-            layers.append(module)
-        self.raw_features = nn.Sequential(*layers)
-
-        # feature
-        self.compact_features = nn.Linear(7 * 7 * 512, 512)
-        # self.compact_features = CapsuleLinear(out_capsules=16, in_length=64, out_length=32)
-
-        # embedding
-        # self.embedding = CompositionalEmbedding(60000, 64, 8, weighted=False, return_code=True)
+        self.model_ft = initialize_model(self.model_name,
+                                         self.embedding_dim,
+                                         self.feature_extracting,
+                                         self.use_pretrained)
 
     def forward(self, x):
-        x = self.raw_features(x)
-        x = x.view(x.size(0), -1)
-        out = self.compact_features(x)
+        out = self.model_ft(x)
         return out
+
+
+class SelfAttention(nn.Module):
+    """ Self attention Layer
+    https://github.com/heykeetae/Self-Attention-GAN"""
+
+    def __init__(self, in_dim, activation):
+        super(SelfAttention, self).__init__()
+        self.chanel_in = in_dim
+        self.activation = activation
+
+        self.query_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+        self.key_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim // 8, kernel_size=1)
+        self.value_conv = nn.Conv2d(in_channels=in_dim, out_channels=in_dim, kernel_size=1)
+        self.gamma = nn.Parameter(torch.zeros(1))
+
+        self.softmax = nn.Softmax(dim=-1)
+
+    def forward(self, x):
+        """
+            inputs :
+                x : input feature maps( B X C X W X H)
+            returns :
+                out : self attention value + input feature
+                attention: B X N X N (N is Width*Height)
+        """
+        m_batchsize, C, width, height = x.size()
+        proj_query = self.query_conv(x).view(m_batchsize, -1, width * height).permute(0, 2, 1)  # B X CX(N)
+        proj_key = self.key_conv(x).view(m_batchsize, -1, width * height)  # B X C x (*W*H)
+        energy = torch.bmm(proj_query, proj_key)  # transpose check
+        attention = self.softmax(energy)  # BX (N) X (N)
+
+        proj_value = self.value_conv(x).view(m_batchsize, -1, width * height)  # B X C X N
+
+        out = torch.bmm(proj_value, attention.permute(0, 2, 1))
+        out = out.view(m_batchsize, C, width, height)
+
+        out = self.gamma * out + x
+        return out
+
+
+class EmbeddingNetwork(BaseNetwork):
+    """ Wrapping Modules to the BaseNetwork """
+
+    def __init__(self, model_name, embedding_dim, feature_extracting, use_pretrained,
+                 attention_flag=False, cross_entropy_flag=False, edge_cutting=False):
+        super(EmbeddingNetwork, self).__init__(model_name, embedding_dim, feature_extracting, use_pretrained)
+        self.attention_flag = attention_flag
+        self.cross_entropy_flag = cross_entropy_flag
+        self.edge_cutting = edge_cutting
+
+        self.model_ft_convs = nn.Sequential(*list(self.model_ft.children())[:-1])
+        self.model_ft_embedding = nn.Sequential(*list(self.model_ft.children())[-1:])
+
+        if self.attention_flag:
+            if self.model_name == 'densenet161':
+                self.attention = SelfAttention(2208, 'relu')
+            elif self.model_name == 'resnet101':
+                self.attention = SelfAttention(2048, 'relu')
+            elif self.model_name == 'inceptionv3':
+                self.attention = SelfAttention(2048, 'relu')
+            elif self.model_name == 'seresnext':
+                self.attention = SelfAttention(2048, 'relu')
+
+        if self.cross_entropy_flag:
+            self.fc_cross_entropy = nn.Linear(self.model_ft.classifier.in_features, 1000)
+
+    def forward(self, x):
+        x = self.model_ft_convs(x)
+        x = F.relu(x, inplace=True)
+
+        if self.attention_flag:
+            x = self.attention(x)
+
+        if self.edge_cutting:
+            x = F.adaptive_avg_pool2d(x[:, :, 1:-1, 1:-1], output_size=1).view(x.size(0), -1)
+        else:
+            x = F.adaptive_avg_pool2d(x, output_size=1).view(x.size(0), -1)
+            # x = gem(x).view(x.size(0), -1)
+        out_embedding = self.model_ft_embedding(x)
+
+        if self.cross_entropy_flag:
+            out_cross_entropy = self.fc_cross_entropy(x)
+            return out_embedding, out_cross_entropy
+        else:
+            return out_embedding
+
+
+def set_parameter_requires_grad(model, feature_extracting):
+    if feature_extracting:
+        for param in model.parameters():
+            param.requires_grad = False
+
+
+def initialize_model(model_name, embedding_dim, feature_extracting, use_pretrained=True):
+    if model_name == "densenet161":
+        model_ft = models.densenet161(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extracting)
+        num_features = model_ft.classifier.in_features
+        model_ft.classifier = nn.Linear(num_features, embedding_dim)
+    elif model_name == "resnet101":
+        model_ft = models.resnet101(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extracting)
+        num_features = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_features, embedding_dim)
+    elif model_name == "inceptionv3":
+        model_ft = models.inception_v3(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extracting)
+        num_features = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_features, embedding_dim)
+    elif model_name == "seresnext":
+        model_ft = se_resnext101_32x4d(num_classes=1000)
+        set_parameter_requires_grad(model_ft, feature_extracting)
+        num_features = model_ft.last_linear.in_features
+        model_ft.last_linear = nn.Linear(num_features, embedding_dim)
+    else:
+        raise ValueError
+
+    return model_ft
+
+
+# GeM Pooling
+def gem(x, p=3, eps=1e-6):
+    return F.adaptive_avg_pool2d(x.clamp(min=eps).pow(p), output_size=1).pow(1. / p)
