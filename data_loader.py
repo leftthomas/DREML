@@ -1,13 +1,12 @@
-# -*- coding: utf_8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
 
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms, datasets
+
+
+# rgb_mean = {'cars': [0.4853, 0.4965, 0.4295], 'cub': [0.4707, 0.4601, 0.4549], 'sop': [0.5807, 0.5396, 0.5044]}
+# rgb_std = {'cars': [0.2237, 0.2193, 0.2568], 'cub': [0.2767, 0.2760, 0.2850], 'sop': [0.2901, 0.2974, 0.3095]}
 
 
 def train_data_loader(data_path, img_size, use_augment=False):
