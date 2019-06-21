@@ -2,6 +2,7 @@ import random
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from PIL import Image
 from torch.utils.data import Dataset
 from torchnet.meter import meter
@@ -38,7 +39,7 @@ class DiverseLoss(nn.Module):
         n_out = n_out.view(output.size(0), -1, n_out.size(-1))
         p_dist = (output * p_out).sum(dim=-1)
         n_dist = (output * n_out).sum(dim=-1)
-        loss = torch.log((torch.exp(n_dist - p_dist)).sum(dim=-1) + 1)
+        loss = -(F.log_softmax(torch.cat([p_dist, n_dist], dim=-1), dim=-1))[:, 0]
         return loss.mean()
 
 
