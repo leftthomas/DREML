@@ -80,14 +80,17 @@ if __name__ == '__main__':
             model.eval()
             val_features = []
             for data in val_database:
-                val_features.append(model(data.to(DEVICE)))
+                data = data.to(DEVICE)
+                val_feature = model(data)
+                val_features.append(val_feature.detach().cpu())
             val_features = torch.cat(val_features)
             # compute recall for train data
             val_progress, num_data = tqdm(val_loader), 0
             for img, label, index in val_progress:
                 num_data += img.size(0)
-                out = model(img.to(DEVICE))
-                meter_recall.add(out.detach().cpu(), index, label, val_features.detach().cpu(), val_labels)
+                img = img.to(DEVICE)
+                out = model(img).detach().cpu()
+                meter_recall.add(out, index, label, val_features, val_labels)
                 desc = 'Val Epoch: {}---{}/{}'.format(epoch, num_data, len(val_set))
                 for i, k in enumerate(recall_ids):
                     desc += ' Recall@{}: {:.2f}%'.format(k, meter_recall.value()[i])
@@ -99,14 +102,17 @@ if __name__ == '__main__':
 
             test_features = []
             for data in test_database:
-                test_features.append(model(data.to(DEVICE)))
+                data = data.to(DEVICE)
+                test_feature = model(data)
+                test_features.append(test_feature.detach().cpu())
             test_features = torch.cat(test_features)
             # compute recall for test data
             test_progress, num_data = tqdm(test_loader), 0
             for img, label, index in test_progress:
                 num_data += img.size(0)
-                out = model(img.to(DEVICE))
-                meter_recall.add(out.detach().cpu(), index, label, test_features.detach().cpu(), test_labels)
+                img = img.to(DEVICE)
+                out = model(img).detach().cpu()
+                meter_recall.add(out, index, label, test_features, test_labels)
                 desc = 'Test Epoch: {}---{}/{}'.format(epoch, num_data, len(test_set))
                 for i, k in enumerate(recall_ids):
                     desc += ' Recall@{}: {:.2f}%'.format(k, meter_recall.value()[i])

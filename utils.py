@@ -37,10 +37,13 @@ class DiverseLoss(nn.Module):
         n_out = model(n_samples)
         p_out = p_out.view(output.size(0), -1, p_out.size(-1))
         n_out = n_out.view(output.size(0), -1, n_out.size(-1))
-        p_loss = torch.abs(output.norm(dim=-1) - p_out.norm(dim=-1)).mean(dim=-1)
-        n_loss = torch.abs(output.norm(dim=-1) - n_out.norm(dim=-1)).mean(dim=-1).clamp(min=1e-8).pow(-1)
-        p_direction_loss = (1 + F.cosine_similarity(output, p_out, dim=-1)).mean(dim=-1)
-        loss = p_loss + n_loss + p_direction_loss
+        # p_loss = torch.abs(output.norm(dim=-1) - p_out.norm(dim=-1)).mean(dim=-1)
+        # n_loss = torch.abs(output.norm(dim=-1) - n_out.norm(dim=-1)).mean(dim=-1).clamp(min=1e-8).pow(-1)
+        # p_direction_loss = (1 + F.cosine_similarity(output, p_out, dim=-1)).mean(dim=-1)
+        # loss = p_loss + n_loss + p_direction_loss
+        p_loss = (-(F.cosine_similarity(output, p_out, dim=-1) - 1)).mean(dim=-1)
+        n_loss = (F.cosine_similarity(output, n_out, dim=-1) + 1).mean(dim=-1)
+        loss = p_loss + n_loss
         return loss.mean()
 
 
@@ -55,11 +58,12 @@ class RecallMeter(meter.Meter):
         self.n = 0
 
     def add(self, output, index, label, database, database_labels):
-        no = output.shape[0]
+        no = output.size(0)
         output, index, label = output.unsqueeze(dim=1), index.unsqueeze(dim=-1), label.unsqueeze(dim=-1)
         database = database.unsqueeze(dim=0)
 
-        pred = torch.argsort(torch.abs(output.norm(dim=-1) - database.norm(dim=-1)))
+        # pred = torch.argsort(torch.abs(output.norm(dim=-1) - database.norm(dim=-1)))
+        pred = torch.argsort(F.cosine_similarity(output, database), descending=True)
         # make sure it don't contain itself
         pred = pred[pred != index].view(no, -1)
         for k in self.topk:
