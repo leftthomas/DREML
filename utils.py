@@ -1,6 +1,5 @@
 import random
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -76,7 +75,7 @@ class RecallMeter(meter.Meter):
 
 
 class RetrievalDataset(Dataset):
-    def __init__(self, data_name, data_type='train', k=10):
+    def __init__(self, data_name, data_type='train'):
 
         if data_type == 'val':
             data = read_json('data/{}/train_images.json'.format(data_name))
@@ -85,32 +84,40 @@ class RetrievalDataset(Dataset):
         self.transform = get_transform(data_name, data_type)
         self.data_type = data_type
         self.images, self.labels = list(data.keys()), list(data.values())
-        self.classes, labels = sorted(set(data.values())), {}
-        for index, label in enumerate(self.classes):
+        # make map between classes and labels
+        classes, labels = sorted(set(data.values())), {}
+        for index, label in enumerate(classes):
             labels[label] = index
         for index, label in enumerate(self.labels):
             self.labels[index] = labels[label]
-        self.k, self.indexes = k, set(range(len(self.images)))
+        # self.indexes = set(range(len(self.images)))
+        self.dict_images = {}
+        for img, label in zip(self.images, self.labels):
+            if label in self.dict_images:
+                self.dict_images[label].append(img)
+            else:
+                self.dict_images[label] = [img]
 
     def __getitem__(self, index):
         img_path, label = self.images[index], self.labels[index]
         img = self.transform(Image.open(img_path).convert('RGB'))
 
         if self.data_type == 'train':
-            positive_index = set(np.where(np.array(self.labels) == label)[0].tolist())
-            negative_index = self.indexes - positive_index
+            positive_database = self.dict_images[label]
             # make sure the search database don't contain itself
-            positive_database = list(positive_index - {index})
-            negative_database = list(negative_index)
-            # choose k samples
-            positive_database = random.choices(positive_database, k=self.k)
-            negative_database = random.choices(negative_database, k=self.k)
-            positives, negatives = [], []
-            for i in range(self.k):
-                positives.append(self.transform(Image.open(self.images[positive_database[i]]).convert('RGB')))
-                negatives.append(self.transform(Image.open(self.images[negative_database[i]]).convert('RGB')))
-            positives, negatives = torch.stack(positives), torch.stack(negatives)
-            return img, positives, negatives
+            positive_database = list(set(positive_database) - {img_path})
+            # choose 1 positive
+            positive_path = random.choice(positive_database)
+            positive_img = self.transform(Image.open(positive_path).convert('RGB')).unsqueeze(dim=0)
+            # choose n-1 negative samples
+            negative_imgs = []
+            for search_label, search_images in self.dict_images.items():
+                if search_label != label:
+                    negative_path = random.choice(search_images)
+                    negative_img = self.transform(Image.open(negative_path).convert('RGB'))
+                    negative_imgs.append(negative_img)
+            negative_imgs = torch.stack(negative_imgs)
+            return img, positive_img, negative_imgs
         else:
             return img, label, index
 
