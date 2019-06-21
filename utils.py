@@ -37,8 +37,8 @@ class DiverseLoss(nn.Module):
         n_out = model(n_samples)
         p_out = p_out.view(output.size(0), -1, p_out.size(-1))
         n_out = n_out.view(output.size(0), -1, n_out.size(-1))
-        p_dist = (output * p_out).sum(dim=-1)
-        n_dist = (output * n_out).sum(dim=-1)
+        p_dist = F.cosine_similarity(output, p_out, dim=-1)
+        n_dist = F.cosine_similarity(output, n_out, dim=-1)
         loss = -(F.log_softmax(torch.cat([p_dist, n_dist], dim=-1), dim=-1))[:, 0]
         return loss.mean()
 
@@ -58,7 +58,7 @@ class RecallMeter(meter.Meter):
         output, index, label = output.unsqueeze(dim=1), index.unsqueeze(dim=-1), label.unsqueeze(dim=-1)
         database = database.unsqueeze(dim=0)
 
-        pred = torch.argsort((output * database).sum(dim=-1), descending=True)
+        pred = torch.argsort(F.cosine_similarity(output, database, dim=-1), descending=True)
         # make sure it don't contain itself
         pred = pred[pred != index].view(no, -1)
         for k in self.topk:
