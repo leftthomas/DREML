@@ -1,29 +1,29 @@
 import os
+import warnings
 
 import numpy as np
 import torch.nn as nn
-import torch.nn.functional as F
 from PIL import Image
-from numpy import linalg as LA
-from torchvision.models import resnet50
+from torchvision.models import resnet18
 
 import utils
+
+warnings.filterwarnings('ignore')
 
 
 class FeatureExtractor(nn.Module):
     def __init__(self):
         super(FeatureExtractor, self).__init__()
         # backbone
-        basic_model, layers = resnet50(pretrained=True).eval(), []
+        basic_model, layers = resnet18(pretrained=True).eval(), []
         for name, module in basic_model.named_children():
-            if isinstance(module, nn.Linear) or isinstance(module, nn.AdaptiveAvgPool2d):
+            if isinstance(module, nn.Linear):
                 continue
             layers.append(module)
         self.features = nn.Sequential(*layers)
 
     def forward(self, x):
         x = self.features(x)
-        x = F.avg_pool2d(x, kernel_size=7, stride=7)
         x = x.view(x.size(0), -1)
         return x
 
@@ -37,7 +37,7 @@ def extractor(data_path, feat_extractor):
         img = img.unsqueeze(0).cuda()
         feat = feat_extractor(img)
         feat = feat.detach().cpu().numpy()
-        feat = feat / LA.norm(feat)
+        # feat = feat / LA.norm(feat)
         features.append(feat)
     features = np.concatenate(features, axis=0)
     return features, image_names

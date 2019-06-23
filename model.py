@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-from torchvision.models.resnet import resnet18
+from torchvision.models.resnet import resnet50
 
 
 class CompositionalEmbedding(nn.Module):
@@ -91,22 +91,22 @@ class Model(nn.Module):
         super(Model, self).__init__()
 
         # backbone
-        basic_model, layers = resnet18(pretrained=True), []
+        basic_model, layers = resnet50(pretrained=True), []
         for name, module in basic_model.named_children():
-            if isinstance(module, nn.Linear) or isinstance(module, nn.AdaptiveAvgPool2d):
+            if isinstance(module, nn.Linear):
                 continue
             layers.append(module)
-        self.raw_features = nn.Sequential(*layers)
+        self.features = nn.Sequential(*layers)
 
-        # feature
-        self.compact_features = nn.Linear(7 * 7 * 512, 512)
-        # self.compact_features = CapsuleLinear(out_capsules=16, in_length=64, out_length=32)
+        # classifier
+        self.fc = nn.Linear(7 * 7 * 512, 512)
+        # self.fc = CapsuleLinear(out_capsules=16, in_length=64, out_length=32)
 
         # embedding
         # self.embedding = CompositionalEmbedding(60000, 64, 8, weighted=False, return_code=True)
 
     def forward(self, x):
-        x = self.raw_features(x)
-        x = x.view(x.size(0), -1)
-        out = self.compact_features(x)
-        return out
+        x = self.features(x)
+        feature = x.view(x.size(0), -1)
+        out = self.fc(feature)
+        return feature, out
