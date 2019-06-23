@@ -4,6 +4,7 @@ import pandas as pd
 import torch
 import torch.optim as optim
 import torchnet as tnt
+from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 from torchnet.logger import VisdomPlotLogger
 from tqdm import tqdm
@@ -46,8 +47,8 @@ if __name__ == '__main__':
         test_labels.append(label)
     test_labels = torch.cat(test_labels)
 
-    model = Model().to(DEVICE)
-    loss_criterion = utils.DiverseLoss()
+    model = Model(len(train_set)).to(DEVICE)
+    loss_criterion = CrossEntropyLoss()
     optimizer = optim.Adam(params=model.parameters())
     print("# parameters:", sum(param.numel() for param in model.parameters()))
 
@@ -60,12 +61,12 @@ if __name__ == '__main__':
         # train loop
         model.train()
         train_progress, num_data = tqdm(train_loader), 0
-        for img, positives, negatives in train_progress:
+        for img, label, index in train_progress:
             num_data += img.size(0)
-            img, positives, negatives = img.to(DEVICE), positives.to(DEVICE), negatives.to(DEVICE)
+            img, label = img.to(DEVICE), label.to(DEVICE)
             optimizer.zero_grad()
-            out = model(img)
-            loss = loss_criterion(out, positives, negatives, model)
+            feature, out = model(img)
+            loss = loss_criterion(out, label)
             loss.backward()
             optimizer.step()
             meter_loss.add(loss.item())
@@ -81,7 +82,7 @@ if __name__ == '__main__':
             val_features = []
             for data in val_database:
                 data = data.to(DEVICE)
-                val_feature = model(data)
+                val_feature = model.features(data).view(data.size(0), -1)
                 val_features.append(val_feature.detach().cpu())
             val_features = torch.cat(val_features)
             # compute recall for train data
@@ -89,7 +90,7 @@ if __name__ == '__main__':
             for img, label, index in val_progress:
                 num_data += img.size(0)
                 img = img.to(DEVICE)
-                out = model(img).detach().cpu()
+                out = model.features(img).view(img.size(0), -1).detach().cpu()
                 meter_recall.add(out, index, label, val_features, val_labels)
                 desc = 'Val Epoch: {}---{}/{}'.format(epoch, num_data, len(val_set))
                 for i, k in enumerate(recall_ids):
@@ -103,7 +104,7 @@ if __name__ == '__main__':
             test_features = []
             for data in test_database:
                 data = data.to(DEVICE)
-                test_feature = model(data)
+                test_feature = model.features(data).view(data.size(0), -1)
                 test_features.append(test_feature.detach().cpu())
             test_features = torch.cat(test_features)
             # compute recall for test data
@@ -111,7 +112,7 @@ if __name__ == '__main__':
             for img, label, index in test_progress:
                 num_data += img.size(0)
                 img = img.to(DEVICE)
-                out = model(img).detach().cpu()
+                out = model.features(img).view(img.size(0), -1).detach().cpu()
                 meter_recall.add(out, index, label, test_features, test_labels)
                 desc = 'Test Epoch: {}---{}/{}'.format(epoch, num_data, len(test_set))
                 for i, k in enumerate(recall_ids):

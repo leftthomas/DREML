@@ -87,7 +87,7 @@ class CompositionalEmbedding(nn.Module):
 
 class Model(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_class):
         super(Model, self).__init__()
 
         # backbone
@@ -99,8 +99,8 @@ class Model(nn.Module):
         self.features = nn.Sequential(*layers)
 
         # classifier
-        self.fc = nn.Linear(7 * 7 * 512, 512)
-        # self.fc = CapsuleLinear(out_capsules=16, in_length=64, out_length=32)
+        self.fc = nn.Linear(512, num_class)
+        # self.fc = CapsuleLinear(out_capsules=num_class, in_length=64, out_length=32)
 
         # embedding
         # self.embedding = CompositionalEmbedding(60000, 64, 8, weighted=False, return_code=True)
