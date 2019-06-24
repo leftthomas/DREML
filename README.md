@@ -21,25 +21,25 @@ pip install git+https://github.com/leftthomas/CapsuleLayer.git@master
 and [sop](http://cvgl.stanford.edu/projects/lifted_struct/) are used in this repo.
 
 You should download these datasets by yourself, and extract them into `data` directory, make sure the dir names are 
-`cars`, `cub` and `sop`. Then run `data_utils.py` to preprocess them.
+`car`, `cub` and `sop`. Then run `data_utils.py` to preprocess them.
 
 ## Usage
 ### Train Model
 ```
-visdom -logging_level WARNING & python train.py --num_epochs 200
+visdom -logging_level WARNING & python train.py --num_epochs 12
 optional arguments:
---data_name                   dataset name [default value is 'cars'](choices=['cars', 'cub', 'sop'])
+--data_name                   dataset name [default value is 'car'](choices=['car', 'cub', 'sop'])
 --recalls                     selected recall [default value is '1,2,4,8']
 --batch_size                  train batch size [default value is 32]
---num_epochs                  train epochs number [default value is 100]
+--num_epochs                  train epochs number [default value is 12]
 ```
 Visdom now can be accessed by going to `127.0.0.1:8097/$data_type` in your browser.
 
 ## Results
 The train loss, recall and test loss, recall are showed on visdom.
 
-### cars
-![result](results/cars.png)
+### car
+![result](results/car.png)
 
 ### cub
 ![result](results/cub.png)
