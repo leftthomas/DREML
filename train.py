@@ -39,13 +39,11 @@ def train(model):
     # iterate batch
     for data in data_loader:
         optimizer.zero_grad()
-        with torch.no_grad():
-            inputs_bt, labels_bt = data
-            fvec = model(inputs_bt.to(DEVICE))
-            loss = criterion(fvec, labels_bt)
-            loss.backward()
-            optimizer.step()
-
+        inputs_bt, labels_bt = data
+        fvec = model(inputs_bt.to(DEVICE))
+        loss = criterion(fvec, labels_bt)
+        loss.backward()
+        optimizer.step()
         _, preds_bt = torch.max(fvec.cpu(), 1)
 
         L_data += loss.item()
