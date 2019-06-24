@@ -21,7 +21,6 @@ class Learn():
 
         self.init_lr = 0.01
         self.decay_rate = 0.01
-        self.imgsize = 256
 
         # sort classes and fix the class order  
         all_class = sorted(self.train_data)

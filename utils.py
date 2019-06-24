@@ -53,9 +53,6 @@ class ImageReader(Dataset):
         classes, class_to_idx = find_classes(data_dict)
         imgs, intervals, idx_to_class = make_dataset(data_dict, class_to_idx)
 
-        if len(imgs) == 0:
-            raise (RuntimeError("Found 0 images!"))
-
         self.imgs = imgs
         self.classes = classes
         self.class_to_idx = class_to_idx  # cat->1
