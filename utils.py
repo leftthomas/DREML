@@ -5,9 +5,21 @@ import torch.nn.functional as F
 from PIL import Image
 from torch.nn.modules.module import Module
 from torch.utils.data import Dataset
+from torchvision import transforms
 
 rgb_mean = {'car': [0.4853, 0.4965, 0.4295], 'cub': [0.4707, 0.4601, 0.4549], 'sop': [0.5807, 0.5396, 0.5044]}
 rgb_std = {'car': [0.2237, 0.2193, 0.2568], 'cub': [0.2767, 0.2760, 0.2850], 'sop': [0.2901, 0.2974, 0.3095]}
+
+
+def get_transform(data_name, data_type):
+    normalize = transforms.Normalize(rgb_mean[data_name], rgb_std[data_name])
+    if data_type == 'train':
+        transform = transforms.Compose([transforms.Resize(224), transforms.RandomCrop(224),
+                                        transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize])
+    else:
+        transform = transforms.Compose(
+            [transforms.Resize(224), transforms.CenterCrop(224), transforms.ToTensor(), normalize])
+    return transform
 
 
 def find_classes(data_dict):
@@ -72,25 +84,25 @@ class ImageReader(Dataset):
         return len(self.imgs)
 
 
-def createID(num_int, Len, N):
-    """uniformly distributed"""
-    multiple = N // num_int
-    remain = N % num_int
-    if remain != 0: multiple += 1
+def create_id(meta_class_size, ensemble_size, num_class):
+    multiple = num_class // meta_class_size
+    remain = num_class % meta_class_size
+    if remain != 0:
+        multiple += 1
 
-    ID = torch.zeros(N, Len)
-    for i in range(Len):
+    ids = torch.zeros(num_class, ensemble_size, dtype=torch.long)
+    for i in range(ensemble_size):
         idx_all = []
         for _ in range(multiple):
-            idx_base = [j for j in range(num_int)]
+            idx_base = [j for j in range(meta_class_size)]
             random.shuffle(idx_base)
             idx_all += idx_base
 
-        idx_all = idx_all[:N]
+        idx_all = idx_all[:num_class]
         random.shuffle(idx_all)
-        ID[:, i] = torch.Tensor(idx_all)
+        ids[:, i] = torch.tensor(idx_all)
 
-    return ID.long()
+    return ids
 
 
 def recall(Fvec, imgLab, rank=None):
@@ -138,3 +150,23 @@ class ProxyStaticLoss(Module):
         print('loss:{:.4f}'.format(loss.item()), end='\r')
 
         return loss
+
+
+def acc(src, L, recall_ids):
+    # src: result directory
+    # L : total ensembled size
+
+    # loading dataset info
+    dsets = torch.load(src + 'testdsets.pth')
+
+    # loading feature vectors
+    R = [torch.load(src + str(d) + 'testFvecs.pth') for d in range(L)]
+    R = torch.cat(R, 1)
+    print(R.size())
+
+    acc_list = recall(R, dsets.idx_to_class, rank=recall_ids)
+
+    desc = ''
+    for index, id in enumerate(recall_ids):
+        desc += 'R@{}:{:.2f} '.format(id, acc_list[index].item() * 100)
+    print(desc)

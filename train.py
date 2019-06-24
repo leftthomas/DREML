@@ -1,5 +1,5 @@
+import argparse
 import copy
-import os
 import random
 import time
 
@@ -7,63 +7,38 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torchvision import models, transforms
+from torchvision import models
 
-from utils import ProxyStaticLoss, ImageReader, rgb_mean, rgb_std
-from utils import createID
+from utils import ProxyStaticLoss, ImageReader
+from utils import create_id, get_transform, acc
 
 
-class learn():
-    def __init__(self, Data, ID, dst, data_dict, num_epochs=10, batch_size=128):
-        self.Data = Data
-        self.ID = ID
-        self.dst = dst
+class Learn():
+    def __init__(self):
 
-        self.data_dict_tra = data_dict['tra']
-        self.data_dict_val = data_dict['test']
-
-        self.batch_size = batch_size
-        print('batch size: {}'.format(self.batch_size))
-        self.num_workers = 8
-        print('num workers: {}'.format(self.num_workers))
+        self.train_data = data_dict['train']
+        self.test_data = data_dict['test']
 
         self.init_lr = 0.01
-        print('init_lr : {}'.format(self.init_lr))
         self.decay_rate = 0.01
-        self.num_epochs = num_epochs
-
         self.imgsize = 256
-        print('image size: {}'.format(self.imgsize))
-        self.RGBmean = rgb_mean[Data]
-        self.RGBstdv = rgb_std[Data]
 
         # sort classes and fix the class order  
-        all_class = sorted(self.data_dict_tra)
+        all_class = sorted(self.train_data)
         self.idx_to_ori_class = {i: all_class[i] for i in range(len(all_class))}
-        if not self.setsys():
-            print('system error')
-            return
 
     def run(self):
-        for i in range(self.ID.size(1)):
+        for i in range(ID.size(1)):
             print('Training ensemble #{}'.format(i))
             self.l = i  # index of the ensembles
-            self.meta_id = self.ID[:, i].tolist()
+            self.meta_id = ID[:, i].tolist()
             self.decay_time = [False, False]
             self.loadData()
             self.setModel()
             self.criterion = ProxyStaticLoss(self.classSize, self.classSize)
-            best_model = self.opt(self.num_epochs)
+            best_model = self.opt(NUM_EPOCH)
             self.eva(best_model)
         return
-
-    ##################################################
-    # step 0: System check
-    ##################################################
-    def setsys(self):
-        if not torch.cuda.is_available(): print('No GPU detected'); return False
-        if not os.path.exists(self.dst): os.makedirs(self.dst)
-        return True
 
     ##################################################
     # step 1: Loading Data
@@ -76,20 +51,12 @@ class learn():
         self.data_dict_meta = {i: [] for i in range(max(self.meta_id) + 1)}
         for i, c in self.idx_to_ori_class.items():
             meta_class_id = self.meta_id[i]
-            tra_imgs = self.data_dict_tra[c]
+            tra_imgs = self.train_data[c]
             if len(tra_imgs) > TH: tra_imgs = random.sample(tra_imgs, TH)
             self.data_dict_meta[meta_class_id] += tra_imgs
 
-        self.data_transforms_tra = transforms.Compose([transforms.Resize(int(self.imgsize * 1.1)),
-                                                       transforms.RandomCrop(self.imgsize),
-                                                       transforms.RandomHorizontalFlip(),
-                                                       transforms.ToTensor(),
-                                                       transforms.Normalize(self.RGBmean, self.RGBstdv)])
-
-        self.data_transforms_val = transforms.Compose([transforms.Resize(self.imgsize),
-                                                       transforms.CenterCrop(self.imgsize),
-                                                       transforms.ToTensor(),
-                                                       transforms.Normalize(self.RGBmean, self.RGBstdv)])
+        self.data_transforms_tra = get_transform(DATA_NAME, 'train')
+        self.data_transforms_val = get_transform(DATA_NAME, 'test')
 
         self.classSize = len(self.data_dict_meta)
         print('output size: {}'.format(self.classSize))
@@ -110,12 +77,12 @@ class learn():
         return
 
     def lr_scheduler(self, epoch):
-        if epoch >= 0.5 * self.num_epochs and not self.decay_time[0]:
+        if epoch >= 0.5 * NUM_EPOCH and not self.decay_time[0]:
             self.decay_time[0] = True
             lr = self.init_lr * self.decay_rate
             print('LR is set to {}'.format(lr))
             for param_group in self.optimizer.param_groups: param_group['lr'] = lr
-        if epoch >= 0.8 * self.num_epochs and not self.decay_time[1]:
+        if epoch >= 0.8 * NUM_EPOCH and not self.decay_time[1]:
             self.decay_time[1] = True
             lr = self.init_lr * self.decay_rate * self.decay_rate
             print('LR is set to {}'.format(lr))
@@ -145,9 +112,9 @@ class learn():
                 best_acc = tra_acc
                 best_epoch = epoch
                 best_model = copy.deepcopy(self.model)
-                torch.save(best_model, self.dst + 'model_{:02}.pth'.format(self.l))
+                torch.save(best_model, 'results/model_{:02}.pth'.format(self.l))
 
-        torch.save(torch.Tensor(record), self.dst + 'record_{:02}.pth'.format(self.l))
+        torch.save(torch.Tensor(record), 'results/record_{:02}.pth'.format(self.l))
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
         print('Best tra acc: {:.2f}'.format(best_acc))
@@ -158,8 +125,8 @@ class learn():
         # Set model to training mode
         self.model.train()
         dsets = ImageReader(self.data_dict_meta, self.data_transforms_tra)
-        dataLoader = torch.utils.data.DataLoader(dsets, batch_size=self.batch_size, shuffle=True,
-                                                 num_workers=self.num_workers)
+        dataLoader = torch.utils.data.DataLoader(dsets, batch_size=BATCH_SIZE, shuffle=True,
+                                                 num_workers=8)
 
         L_data, T_data, N_data = 0.0, 0, 0
 
@@ -167,7 +134,7 @@ class learn():
         for data in dataLoader:
             self.optimizer.zero_grad()
             with torch.set_grad_enabled(True):
-                inputs_bt, labels_bt = data  # <FloatTensor> <LongTensor>
+                inputs_bt, labels_bt = data
                 fvec = self.model(inputs_bt.cuda())
                 loss = self.criterion(fvec, labels_bt)
                 loss.backward()
@@ -183,35 +150,45 @@ class learn():
 
     def eva(self, best_model):
         best_model.eval()
-        dsets = ImageReader(self.data_dict_val, self.data_transforms_val)
-        dataLoader = torch.utils.data.DataLoader(dsets, self.batch_size, shuffle=False, num_workers=self.num_workers)
+        dsets = ImageReader(self.test_data, self.data_transforms_val)
+        dataLoader = torch.utils.data.DataLoader(dsets, BATCH_SIZE, shuffle=False, num_workers=8)
 
         Fvecs = []
         with torch.set_grad_enabled(False):
             for data in dataLoader:
-                inputs_bt, labels_bt = data  # <FloatTensor> <LongTensor>
+                inputs_bt, labels_bt = data
                 fvec = F.normalize(best_model(inputs_bt.cuda()), p=2, dim=1)
                 Fvecs.append(fvec.cpu())
 
         Fvecs_all = torch.cat(Fvecs, 0)
-        torch.save(dsets, self.dst + 'testdsets.pth')
-        torch.save(Fvecs_all, self.dst + str(self.l) + 'testFvecs.pth')
+        torch.save(dsets, 'results/testdsets.pth')
+        torch.save(Fvecs_all, 'results/' + str(self.l) + 'testFvecs.pth')
         return
 
 
 if __name__ == '__main__':
-    ensemble_size = 12  # size of ensemble
-    meta_class_size = 12  # size of meta-classes
+    parser = argparse.ArgumentParser(description='Train Image Retrieval Model')
+    parser.add_argument('--data_name', default='car', type=str, choices=['car', 'cub', 'sop'], help='dataset name')
+    parser.add_argument('--recalls', default='1,2,4,8', type=str, help='selected recall')
+    parser.add_argument('--batch_size', default=128, type=int, help='train batch size')
+    parser.add_argument('--num_epochs', default=12, type=int, help='train epoch number')
+    parser.add_argument('--ensemble_size', default=12, type=int, help='ensemble model size')
+    parser.add_argument('--meta_class_size', default=12, type=int, help='meta class size')
 
-    # train
-    Data = 'CAR'
-    data_dict = torch.load('data/cars/data_dict_emb.pth')
-    dst = 'results/'
+    opt = parser.parse_args()
 
-    # ID matrix
+    DATA_NAME, RECALLS, BATCH_SIZE, NUM_EPOCH = opt.data_name, opt.recalls, opt.batch_size, opt.num_epochs
+    ENSEMBLE_SIZE, META_CLASS_SIZE = opt.ensemble_size, opt.meta_class_size
+    recall_ids = [int(k) for k in RECALLS.split(',')]
+    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    results = {'train_loss': []}
+    for k in recall_ids:
+        results['train_recall_{}'.format(k)], results['test_recall_{}'.format(k)] = [], []
+
+    data_dict = torch.load('data/{}/data_dicts.pth'.format(DATA_NAME))
     print('Creating ID')
-    ID = createID(meta_class_size, ensemble_size, len(data_dict['tra']))
+    ID = create_id(META_CLASS_SIZE, ENSEMBLE_SIZE, len(data_dict['train']))
 
-    x = learn(Data, ID, dst, data_dict, num_epochs=12, batch_size=128)
+    x = Learn()
     x.run()
-    torch.save(ID, dst + 'ID.pth')
+    acc('results/', ENSEMBLE_SIZE, recall_ids)

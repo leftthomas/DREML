@@ -30,8 +30,10 @@ visdom -logging_level WARNING & python train.py --num_epochs 12
 optional arguments:
 --data_name                   dataset name [default value is 'car'](choices=['car', 'cub', 'sop'])
 --recalls                     selected recall [default value is '1,2,4,8']
---batch_size                  train batch size [default value is 32]
+--batch_size                  train batch size [default value is 128]
 --num_epochs                  train epochs number [default value is 12]
+--ensemble_size               ensemble model size [default value is 12]
+--meta_class_size             meta class size [default value is 12]
 ```
 Visdom now can be accessed by going to `127.0.0.1:8097/$data_type` in your browser.
 
