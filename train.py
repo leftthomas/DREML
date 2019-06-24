@@ -1,130 +1,198 @@
-import argparse
+import copy
+import os
+import random
+import time
 
-import pandas as pd
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
-import torchnet as tnt
-from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader
-from torchnet.logger import VisdomPlotLogger
-from tqdm import tqdm
+from torchvision import models, transforms
 
-import utils
-from model import Model
+from reader import ImageReader
+from utils import ProxyStaticLoss
+from utils import RGBmean, RGBstdv
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Train Image Retrieval Model')
-    parser.add_argument('--data_name', default='cars', type=str, choices=['cars', 'cub', 'sop'], help='dataset name')
-    parser.add_argument('--recalls', default='1,2,4,8', type=str, help='selected recall')
-    parser.add_argument('--batch_size', default=32, type=int, help='training batch size')
-    parser.add_argument('--num_epochs', default=100, type=int, help='train epoch number')
 
-    opt = parser.parse_args()
+class learn():
+    def __init__(self, Data, ID, dst, data_dict, num_epochs=10, batch_size=128):
+        self.Data = Data
+        self.ID = ID
+        self.dst = dst
 
-    DATA_NAME, RECALLS, BATCH_SIZE, NUM_EPOCH = opt.data_name, opt.recalls, opt.batch_size, opt.num_epochs
-    recall_ids = [int(k) for k in RECALLS.split(',')]
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    results = {'train_loss': []}
-    for k in recall_ids:
-        results['train_recall_{}'.format(k)], results['test_recall_{}'.format(k)] = [], []
+        self.data_dict_tra = data_dict['tra']
+        self.data_dict_val = data_dict['test']
 
-    train_set = utils.RetrievalDataset(DATA_NAME, data_type='train')
-    val_set = utils.RetrievalDataset(DATA_NAME, data_type='val')
-    test_set = utils.RetrievalDataset(DATA_NAME, data_type='test')
-    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=False)
-    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, num_workers=16, shuffle=False)
+        self.batch_size = batch_size;
+        print('batch size: {}'.format(self.batch_size))
+        self.num_workers = 8;
+        print('num workers: {}'.format(self.num_workers))
 
-    # load data to memory
-    print('load data to memory, it may take a while')
-    val_database, val_labels, test_database, test_labels = [], [], [], []
-    for img, label, index in val_loader:
-        val_database.append(img)
-        val_labels.append(label)
-    val_labels = torch.cat(val_labels)
-    for img, label, index in test_loader:
-        test_database.append(img)
-        test_labels.append(label)
-    test_labels = torch.cat(test_labels)
+        self.init_lr = 0.01;
+        print('init_lr : {}'.format(self.init_lr))
+        self.decay_rate = 0.01
+        self.num_epochs = num_epochs
 
-    model = Model(len(train_set)).to(DEVICE)
-    loss_criterion = CrossEntropyLoss()
-    optimizer = optim.Adam(params=model.parameters())
-    print("# parameters:", sum(param.numel() for param in model.parameters()))
+        self.imgsize = 256;
+        print('image size: {}'.format(self.imgsize))
+        self.RGBmean = RGBmean[Data]
+        self.RGBstdv = RGBstdv[Data]
 
-    meter_loss = tnt.meter.AverageValueMeter()
-    meter_recall = utils.RecallMeter(topk=recall_ids)
-    loss_logger = VisdomPlotLogger('line', env=DATA_NAME, opts={'title': 'Loss'})
-    recall_logger = VisdomPlotLogger('line', env=DATA_NAME, opts={'title': 'Recall'})
+        # sort classes and fix the class order  
+        all_class = sorted(self.data_dict_tra)
+        self.idx_to_ori_class = {i: all_class[i] for i in range(len(all_class))}
+        if not self.setsys(): print('system error'); return
 
-    for epoch in range(1, NUM_EPOCH + 1):
-        # train loop
-        model.train()
-        train_progress, num_data = tqdm(train_loader), 0
-        for img, label, index in train_progress:
-            num_data += img.size(0)
-            img, label = img.to(DEVICE), label.to(DEVICE)
-            optimizer.zero_grad()
-            feature, out = model(img)
-            loss = loss_criterion(out, label)
-            loss.backward()
-            optimizer.step()
-            meter_loss.add(loss.item())
-            train_progress.set_description('Train Epoch: {}---{}/{} Loss: {:.2f}'.format(
-                epoch, num_data, len(train_set), meter_loss.value()[0]))
-        loss_logger.log(epoch, meter_loss.value()[0], name='train')
-        results['train_loss'].append(meter_loss.value()[0])
-        meter_loss.reset()
+    def run(self):
+        for i in range(self.ID.size(1)):
+            print('Training ensemble #{}'.format(i))
+            self.l = i  # index of the ensembles
+            self.meta_id = self.ID[:, i].tolist()
+            self.decay_time = [False, False]
+            self.loadData()
+            self.setModel()
+            self.criterion = ProxyStaticLoss(self.classSize, self.classSize)
+            best_model = self.opt(self.num_epochs)
+            self.eva(best_model)
+        return
 
-        # test loop
-        with torch.no_grad():
-            model.eval()
-            val_features = []
-            for data in val_database:
-                data = data.to(DEVICE)
-                val_feature = model.features(data).view(data.size(0), -1)
-                val_features.append(val_feature.detach().cpu())
-            val_features = torch.cat(val_features)
-            # compute recall for train data
-            val_progress, num_data = tqdm(val_loader), 0
-            for img, label, index in val_progress:
-                num_data += img.size(0)
-                img = img.to(DEVICE)
-                out = model.features(img).view(img.size(0), -1).detach().cpu()
-                meter_recall.add(out, index, label, val_features, val_labels)
-                desc = 'Val Epoch: {}---{}/{}'.format(epoch, num_data, len(val_set))
-                for i, k in enumerate(recall_ids):
-                    desc += ' Recall@{}: {:.2f}%'.format(k, meter_recall.value()[i])
-                val_progress.set_description(desc)
-            for i, k in enumerate(recall_ids):
-                recall_logger.log(epoch, meter_recall.value()[i], name='train_recall_{}'.format(k))
-                results['train_recall_{}'.format(k)].append(meter_recall.value()[i])
-            meter_recall.reset()
+    ##################################################
+    # step 0: System check
+    ##################################################
+    def setsys(self):
+        if not torch.cuda.is_available(): print('No GPU detected'); return False
+        if not os.path.exists(self.dst): os.makedirs(self.dst)
+        return True
 
-            test_features = []
-            for data in test_database:
-                data = data.to(DEVICE)
-                test_feature = model.features(data).view(data.size(0), -1)
-                test_features.append(test_feature.detach().cpu())
-            test_features = torch.cat(test_features)
-            # compute recall for test data
-            test_progress, num_data = tqdm(test_loader), 0
-            for img, label, index in test_progress:
-                num_data += img.size(0)
-                img = img.to(DEVICE)
-                out = model.features(img).view(img.size(0), -1).detach().cpu()
-                meter_recall.add(out, index, label, test_features, test_labels)
-                desc = 'Test Epoch: {}---{}/{}'.format(epoch, num_data, len(test_set))
-                for i, k in enumerate(recall_ids):
-                    desc += ' Recall@{}: {:.2f}%'.format(k, meter_recall.value()[i])
-                test_progress.set_description(desc)
-            for i, k in enumerate(recall_ids):
-                recall_logger.log(epoch, meter_recall.value()[i], name='test_recall_{}'.format(k))
-                results['test_recall_{}'.format(k)].append(meter_recall.value()[i])
-            meter_recall.reset()
+    ##################################################
+    # step 1: Loading Data
+    ##################################################
+    def loadData(self):
+        # balance data for each class
+        TH = 300
 
-        # save model
-        torch.save(model.state_dict(), 'epochs/{}_{}.pth'.format(DATA_NAME, epoch))
-        # save statistics
-        data_frame = pd.DataFrame(data=results, index=range(1, epoch + 1))
-        data_frame.to_csv('statistics/{}_results.csv'.format(DATA_NAME), index_label='epoch')
+        # append image
+        self.data_dict_meta = {i: [] for i in range(max(self.meta_id) + 1)}
+        for i, c in self.idx_to_ori_class.items():
+            meta_class_id = self.meta_id[i]
+            tra_imgs = self.data_dict_tra[c]
+            if len(tra_imgs) > TH: tra_imgs = random.sample(tra_imgs, TH)
+            self.data_dict_meta[meta_class_id] += tra_imgs
+
+        self.data_transforms_tra = transforms.Compose([transforms.Resize(int(self.imgsize * 1.1)),
+                                                       transforms.RandomCrop(self.imgsize),
+                                                       transforms.RandomHorizontalFlip(),
+                                                       transforms.ToTensor(),
+                                                       transforms.Normalize(self.RGBmean, self.RGBstdv)])
+
+        self.data_transforms_val = transforms.Compose([transforms.Resize(self.imgsize),
+                                                       transforms.CenterCrop(self.imgsize),
+                                                       transforms.ToTensor(),
+                                                       transforms.Normalize(self.RGBmean, self.RGBstdv)])
+
+        self.classSize = len(self.data_dict_meta)
+        print('output size: {}'.format(self.classSize))
+
+        return
+
+    ##################################################
+    # step 2: Set Model
+    ##################################################
+    def setModel(self):
+        print('Setting model')
+        self.model = models.resnet18(pretrained=True)
+        num_ftrs = self.model.fc.in_features
+        self.model.fc = nn.Linear(num_ftrs, self.classSize)
+        self.model.avgpool = nn.AdaptiveAvgPool2d(1)
+        self.model = self.model.cuda()
+        self.optimizer = optim.SGD(self.model.parameters(), lr=self.init_lr, momentum=0.9)
+        return
+
+    def lr_scheduler(self, epoch):
+        if epoch >= 0.5 * self.num_epochs and not self.decay_time[0]:
+            self.decay_time[0] = True
+            lr = self.init_lr * self.decay_rate
+            print('LR is set to {}'.format(lr))
+            for param_group in self.optimizer.param_groups: param_group['lr'] = lr
+        if epoch >= 0.8 * self.num_epochs and not self.decay_time[1]:
+            self.decay_time[1] = True
+            lr = self.init_lr * self.decay_rate * self.decay_rate
+            print('LR is set to {}'.format(lr))
+            for param_group in self.optimizer.param_groups: param_group['lr'] = lr
+        return
+
+    ##################################################
+    # step 3: Learning
+    ##################################################
+    def opt(self, num_epochs):
+        # recording time and epoch acc and best result
+        since = time.time()
+        best_epoch = 0
+        best_acc = 0
+        record = []
+        for epoch in range(num_epochs):
+            print('Epoch {}/{} \n '.format(epoch, num_epochs - 1) + '-' * 40)
+            self.lr_scheduler(epoch)
+
+            tra_loss, tra_acc = self.tra()
+
+            record.append((epoch, tra_loss, tra_acc))
+            print('tra - Loss:{:.4f} - Acc:{:.4f}'.format(tra_loss, tra_acc))
+
+            # deep copy the model
+            if epoch >= 1 and tra_acc > best_acc:
+                best_acc = tra_acc
+                best_epoch = epoch
+                best_model = copy.deepcopy(self.model)
+                torch.save(best_model, self.dst + 'model_{:02}.pth'.format(self.l))
+
+        torch.save(torch.Tensor(record), self.dst + 'record_{:02}.pth'.format(self.l))
+        time_elapsed = time.time() - since
+        print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+        print('Best tra acc: {:.2f}'.format(best_acc))
+        print('Best tra acc in epoch: {}'.format(best_epoch))
+        return best_model
+
+    def tra(self):
+        # Set model to training mode
+        self.model.train()
+        dsets = ImageReader(self.data_dict_meta, self.data_transforms_tra)
+        dataLoader = torch.utils.data.DataLoader(dsets, batch_size=self.batch_size, shuffle=True,
+                                                 num_workers=self.num_workers)
+
+        L_data, T_data, N_data = 0.0, 0, 0
+
+        # iterate batch
+        for data in dataLoader:
+            self.optimizer.zero_grad()
+            with torch.set_grad_enabled(True):
+                inputs_bt, labels_bt = data  # <FloatTensor> <LongTensor>
+                fvec = self.model(inputs_bt.cuda())
+                loss = self.criterion(fvec, labels_bt)
+                loss.backward()
+                self.optimizer.step()
+
+            _, preds_bt = torch.max(fvec.cpu(), 1)
+
+            L_data += loss.item()
+            T_data += torch.sum(preds_bt == labels_bt).item()
+            N_data += len(labels_bt)
+
+        return L_data / N_data, T_data / N_data
+
+    def eva(self, best_model):
+        best_model.eval()
+        dsets = ImageReader(self.data_dict_val, self.data_transforms_val)
+        dataLoader = torch.utils.data.DataLoader(dsets, self.batch_size, shuffle=False, num_workers=self.num_workers)
+
+        Fvecs = []
+        with torch.set_grad_enabled(False):
+            for data in dataLoader:
+                inputs_bt, labels_bt = data  # <FloatTensor> <LongTensor>
+                fvec = F.normalize(best_model(inputs_bt.cuda()), p=2, dim=1)
+                Fvecs.append(fvec.cpu())
+
+        Fvecs_all = torch.cat(Fvecs, 0)
+        torch.save(dsets, self.dst + 'testdsets.pth')
+        torch.save(Fvecs_all, self.dst + str(self.l) + 'testFvecs.pth')
+        return
