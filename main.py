@@ -8,7 +8,7 @@ meta_class_size = 12  # size of meta-classes
 
 # train
 Data = 'CAR'
-data_dict = torch.load('data/car_data_dict_emb.pth')
+data_dict = torch.load('data/cars/data_dict_emb.pth')
 dst = 'results/'
 
 # ID matrix

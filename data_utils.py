@@ -1,5 +1,6 @@
 import json
 
+import torch
 from scipy.io import loadmat
 
 
@@ -28,11 +29,16 @@ def process_car_data(data_path):
     for img in annotations:
         img_name, img_label = str(img[0][0]), str(img[-2][0][0])
         if int(img_label) < 99:
-            train_images['{}/{}'.format(data_path, img_name)] = img_label
+            if img_label in train_images:
+                train_images[img_label].append('{}/{}'.format(data_path, img_name))
+            else:
+                train_images[img_label] = ['{}/{}'.format(data_path, img_name)]
         else:
-            test_images['{}/{}'.format(data_path, img_name)] = img_label
-    write_json(train_images, '{}/{}'.format(data_path, train_image_json))
-    write_json(test_images, '{}/{}'.format(data_path, test_image_json))
+            if img_label in test_images:
+                test_images[img_label].append('{}/{}'.format(data_path, img_name))
+            else:
+                test_images[img_label] = ['{}/{}'.format(data_path, img_name)]
+    torch.save({'tra': train_images, 'test': test_images}, '{}/{}'.format(data_path, train_image_json))
 
 
 def process_cub_data(data_path):
@@ -64,8 +70,7 @@ def process_sop_data(data_path):
 
 
 if __name__ == '__main__':
-    train_image_json, test_image_json = 'train_images.json', 'test_images.json'
+    train_image_json, test_image_json = 'data_dict_emb.pth', 'test_images.json'
     process_car_data('data/cars')
-    process_cub_data('data/cub')
-    process_sop_data('data/sop')
-
+    # process_cub_data('data/cub')
+    # process_sop_data('data/sop')
