@@ -23,17 +23,17 @@ class learn():
         self.data_dict_tra = data_dict['tra']
         self.data_dict_val = data_dict['test']
 
-        self.batch_size = batch_size;
+        self.batch_size = batch_size
         print('batch size: {}'.format(self.batch_size))
-        self.num_workers = 8;
+        self.num_workers = 8
         print('num workers: {}'.format(self.num_workers))
 
-        self.init_lr = 0.01;
+        self.init_lr = 0.01
         print('init_lr : {}'.format(self.init_lr))
         self.decay_rate = 0.01
         self.num_epochs = num_epochs
 
-        self.imgsize = 256;
+        self.imgsize = 256
         print('image size: {}'.format(self.imgsize))
         self.RGBmean = RGBmean[Data]
         self.RGBstdv = RGBstdv[Data]
@@ -41,7 +41,9 @@ class learn():
         # sort classes and fix the class order  
         all_class = sorted(self.data_dict_tra)
         self.idx_to_ori_class = {i: all_class[i] for i in range(len(all_class))}
-        if not self.setsys(): print('system error'); return
+        if not self.setsys():
+            print('system error')
+            return
 
     def run(self):
         for i in range(self.ID.size(1)):

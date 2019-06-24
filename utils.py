@@ -4,19 +4,8 @@ import torch
 import torch.nn.functional as F
 from torch.nn.modules.module import Module
 
-RGBmean, RGBstdv = {}, {}
-# CUB
-RGBmean['CUB'], RGBstdv['CUB'] = [0.4707, 0.4601, 0.4549], [0.2767, 0.2760, 0.2850]
-# CAR
-RGBmean['CAR'], RGBstdv['CAR'] = [0.4853, 0.4965, 0.4295], [0.2237, 0.2193, 0.2568]
-# ICR
-RGBmean['ISC'], RGBstdv['ISC'] = [0.8324, 0.8109, 0.8041], [0.2206, 0.2378, 0.2444]
-# SOP
-RGBmean['SOP'], RGBstdv['SOP'] = [0.5807, 0.5396, 0.5044], [0.2901, 0.2974, 0.3095]
-# PKU
-RGBmean['PKU'], RGBstdv['PKU'] = [0.3912, 0.4110, 0.4118], [0.2357, 0.2332, 0.2338]
-# CIFAR100
-RGBmean['CIFAR'], RGBstdv['CIFAR'] = [0.5071, 0.4867, 0.4408], [0.2675, 0.2565, 0.2761]
+RGBmean = {'CUB': [0.4707, 0.4601, 0.4549], 'CAR': [0.4853, 0.4965, 0.4295], 'SOP': [0.5807, 0.5396, 0.5044]}
+RGBstdv = {'CUB': [0.2767, 0.2760, 0.2850], 'CAR': [0.2237, 0.2193, 0.2568], 'SOP': [0.2901, 0.2974, 0.3095]}
 
 
 def createID(num_int, Len, N):
@@ -50,7 +39,7 @@ def recall(Fvec, imgLab, rank=None):
     D = Fvec.mm(torch.t(Fvec))
     D[torch.eye(len(imgLab)).byte()] = -1
 
-    if rank == None:
+    if rank is None:
         _, idx = D.sort(1, descending=True)
         imgPre = imgLab[idx[:, 0]]
         A = (imgPre == imgLab).float()
@@ -65,30 +54,6 @@ def recall(Fvec, imgLab, rank=None):
                 A += (imgPre == imgLab).float()
             acc_list.append((torch.sum((A > 0).float()) / N).item())
         return torch.Tensor(acc_list)
-
-
-def recall2(Fvec_val, Fvec_gal, imgLab_val, imgLab_gal, rank=None):
-    N = len(imgLab_val)
-    imgLab_val = torch.LongTensor([imgLab_val[i] for i in range(len(imgLab_val))])
-    imgLab_gal = torch.LongTensor([imgLab_gal[i] for i in range(len(imgLab_gal))])
-
-    D = Fvec_val.mm(torch.t(Fvec_gal))
-
-    if rank == None:
-        _, idx = D.sort(1, descending=True)
-        imgPre = imgLab_gal[idx[:, 0]]
-        A = (imgPre == imgLab_val).float()
-        return (torch.sum(A) / N).item()
-    else:
-        _, idx = D.topk(rank[-1])
-        acc_list = []
-        for r in rank:
-            A = 0
-            for i in range(r):
-                imgPre = imgLab_gal[idx[:, i]]
-                A += (imgPre == imgLab_val).float()
-            acc_list.append((torch.sum((A > 0).float()) / N).item())
-        return acc_list
 
 
 class ProxyStaticLoss(Module):

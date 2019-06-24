@@ -6,10 +6,10 @@ from utils import createID
 ensemble_size = 12  # size of ensemble
 meta_class_size = 12  # size of meta-classes
 
-## train
+# train
 Data = 'CAR'
-data_dict = torch.load('/pless_nfs/home/datasets/CAR/data_dict_emb.pth')
-dst = '_result/'
+data_dict = torch.load('data/car_data_dict_emb.pth')
+dst = 'results/'
 
 # ID matrix
 print('Creating ID')
