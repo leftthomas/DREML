@@ -3,20 +3,16 @@ import copy
 import random
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import MultiStepLR
-from torchvision import models
+from torch.utils.data.dataloader import DataLoader
 
+from model import Model
 from utils import ProxyStaticLoss, ImageReader
 from utils import create_id, get_transform, acc
 
 
-##################################################
-# step 1: Loading Data
-##################################################
-def loadData(meta_id):
+def load_data(meta_id):
     # balance data for each class
     TH = 300
     # append image
@@ -24,64 +20,28 @@ def loadData(meta_id):
     for i, c in idx_to_ori_class.items():
         meta_class_id = meta_id[i]
         tra_imgs = train_data[c]
-        if len(tra_imgs) > TH: tra_imgs = random.sample(tra_imgs, TH)
+        if len(tra_imgs) > TH:
+            tra_imgs = random.sample(tra_imgs, TH)
         data_dict_meta[meta_class_id] += tra_imgs
-
-    data_transforms_tra = get_transform(DATA_NAME, 'train')
-    data_transforms_val = get_transform(DATA_NAME, 'test')
     classSize = len(data_dict_meta)
 
-    return data_dict_meta, data_transforms_tra, data_transforms_val, classSize
+    return data_dict_meta, classSize
 
 
-##################################################
-# step 2: Set Model
-##################################################
-def setModel():
-    model = models.resnet18(pretrained=True)
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, classSize)
-    model.avgpool = nn.AdaptiveAvgPool2d(1)
-    model = model.cuda()
-    optimizer = Adam(model.parameters())
-    lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)], gamma=0.01)
-    return model, optimizer, lr_scheduler
-
-
-##################################################
-# step 3: Learning
-##################################################
-def optd(num_epochs, index):
-    # recording epoch acc and best result
-    best_acc = 0
-    for epoch in range(num_epochs):
-        print('Epoch {}/{} \n '.format(epoch, num_epochs - 1) + '-' * 40)
-        lr_scheduler.step(epoch)
-        tra_loss, tra_acc = tra()
-        print('tra - Loss:{:.4f} - Acc:{:.4f}'.format(tra_loss, tra_acc))
-        # deep copy the model
-        if epoch >= 1 and tra_acc > best_acc:
-            best_acc = tra_acc
-            best_model = copy.deepcopy(model)
-            torch.save(best_model, 'results/model_{:02}.pth'.format(index))
-    print('Best tra acc: {:.2f}'.format(best_acc))
-    return best_model
-
-
-def tra():
+def train(model):
     # Set model to training mode
     model.train()
-    dsets = ImageReader(data_dict_meta, data_transforms_tra)
-    dataLoader = torch.utils.data.DataLoader(dsets, batch_size=BATCH_SIZE, shuffle=True, num_workers=8)
+    dsets = ImageReader(data_dict_meta, get_transform(DATA_NAME, 'train'))
+    data_loader = DataLoader(dsets, batch_size=BATCH_SIZE, shuffle=True, num_workers=8)
 
     L_data, T_data, N_data = 0.0, 0, 0
 
     # iterate batch
-    for data in dataLoader:
+    for data in data_loader:
         optimizer.zero_grad()
-        with torch.set_grad_enabled(True):
+        with torch.no_grad():
             inputs_bt, labels_bt = data
-            fvec = model(inputs_bt.cuda())
+            fvec = model(inputs_bt.to(DEVICE))
             loss = criterion(fvec, labels_bt)
             loss.backward()
             optimizer.step()
@@ -95,22 +55,22 @@ def tra():
     return L_data / N_data, T_data / N_data
 
 
-def eva(best_model, index):
-    best_model.eval()
-    dsets = ImageReader(test_data, data_transforms_val)
-    dataLoader = torch.utils.data.DataLoader(dsets, BATCH_SIZE, shuffle=False, num_workers=8)
+def eval(model, index):
+    model.eval()
+    dsets = ImageReader(test_data, get_transform(DATA_NAME, 'test'))
+    data_loader = DataLoader(dsets, BATCH_SIZE, shuffle=False, num_workers=8)
 
     Fvecs = []
     with torch.no_grad():
-        for data in dataLoader:
+        for data in data_loader:
             inputs_bt, labels_bt = data
-            fvec = F.normalize(best_model(inputs_bt.cuda()), p=2, dim=1)
+            fvec = model(inputs_bt.to(DEVICE))
+            # fvec = F.normalize(fvec)
             Fvecs.append(fvec.cpu())
 
     Fvecs_all = torch.cat(Fvecs, 0)
     torch.save(dsets, 'results/testdsets.pth')
     torch.save(Fvecs_all, 'results/' + str(index) + 'testFvecs.pth')
-    return
 
 
 if __name__ == '__main__':
@@ -133,7 +93,6 @@ if __name__ == '__main__':
         results['train_recall_{}'.format(k)], results['test_recall_{}'.format(k)] = [], []
 
     data_dict = torch.load('data/{}/data_dicts.pth'.format(DATA_NAME))
-    print('Creating ID')
     ID = create_id(META_CLASS_SIZE, ENSEMBLE_SIZE, len(data_dict['train']))
     train_data, test_data = data_dict['train'], data_dict['test']
     # sort classes and fix the class order
@@ -143,9 +102,23 @@ if __name__ == '__main__':
     for i in range(ID.size(1)):
         print('Training ensemble #{}'.format(i))
         meta_id = ID[:, i].tolist()
-        data_dict_meta, data_transforms_tra, data_transforms_val, classSize = loadData(meta_id)
-        model, optimizer, lr_scheduler = setModel()
+        data_dict_meta, classSize = load_data(meta_id)
+        model = Model(classSize).to(DEVICE)
+        optimizer = Adam(model.parameters())
+        lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)], gamma=0.01)
         criterion = ProxyStaticLoss(classSize, classSize)
-        best_model = optd(NUM_EPOCH, i)
-        eva(best_model, i)
+        # recording epoch acc and best result
+        best_acc = 0
+        for epoch in range(NUM_EPOCH):
+            print('Epoch {}/{} \n '.format(epoch, NUM_EPOCH - 1) + '-' * 40)
+            lr_scheduler.step(epoch)
+            tra_loss, tra_acc = train(model)
+            print('tra - Loss:{:.4f} - Acc:{:.4f}'.format(tra_loss, tra_acc))
+            # deep copy the model
+            if epoch >= 1 and tra_acc > best_acc:
+                best_acc = tra_acc
+                best_model = copy.deepcopy(model)
+                torch.save(best_model, 'results/model_{:02}.pth'.format(i))
+        print('Best tra acc: {:.2f}'.format(best_acc))
+        eval(best_model, i)
     acc('results/', ENSEMBLE_SIZE, recall_ids)
