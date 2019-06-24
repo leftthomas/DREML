@@ -1,18 +1,5 @@
-import json
-
 import torch
 from scipy.io import loadmat
-
-
-def write_json(data, path):
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write(json.dumps(data))
-
-
-def read_json(path):
-    with open(path, 'r', encoding='utf-8') as f:
-        data = json.loads(f.read())
-    return data
 
 
 def read_txt(path):
@@ -38,7 +25,7 @@ def process_car_data(data_path):
                 test_images[img_label].append('{}/{}'.format(data_path, img_name))
             else:
                 test_images[img_label] = ['{}/{}'.format(data_path, img_name)]
-    torch.save({'tra': train_images, 'test': test_images}, '{}/{}'.format(data_path, train_image_json))
+    torch.save({'train': train_images, 'test': test_images}, '{}/{}'.format(data_path, data_dicts))
 
 
 def process_cub_data(data_path):
@@ -47,11 +34,16 @@ def process_cub_data(data_path):
     train_images, test_images = {}, {}
     for img_id, img_name in images.items():
         if int(labels[img_id]) < 101:
-            train_images['{}/images/{}'.format(data_path, img_name)] = labels[img_id]
+            if labels[img_id] in train_images:
+                train_images[labels[img_id]].append('{}/images/{}'.format(data_path, img_name))
+            else:
+                train_images[labels[img_id]] = ['{}/images/{}'.format(data_path, img_name)]
         else:
-            test_images['{}/images/{}'.format(data_path, img_name)] = labels[img_id]
-    write_json(train_images, '{}/{}'.format(data_path, train_image_json))
-    write_json(test_images, '{}/{}'.format(data_path, test_image_json))
+            if labels[img_id] in test_images:
+                test_images[labels[img_id]].append('{}/images/{}'.format(data_path, img_name))
+            else:
+                test_images[labels[img_id]] = ['{}/images/{}'.format(data_path, img_name)]
+    torch.save({'train': train_images, 'test': test_images}, '{}/{}'.format(data_path, data_dicts))
 
 
 def process_sop_data(data_path):
@@ -59,18 +51,23 @@ def process_sop_data(data_path):
     for index, line in enumerate(open('{}/Ebay_train.txt'.format(data_path), 'r', encoding='utf-8')):
         if index != 0:
             _, label, _, img_name = line.split()
-            train_images['{}/{}'.format(data_path, img_name)] = label
-    write_json(train_images, '{}/{}'.format(data_path, train_image_json))
+            if label in train_images:
+                train_images[label].append('{}/{}'.format(data_path, img_name))
+            else:
+                train_images[label] = ['{}/{}'.format(data_path, img_name)]
 
     for index, line in enumerate(open('{}/Ebay_test.txt'.format(data_path), 'r', encoding='utf-8')):
         if index != 0:
             _, label, _, img_name = line.split()
-            test_images['{}/{}'.format(data_path, img_name)] = label
-    write_json(test_images, '{}/{}'.format(data_path, test_image_json))
+            if label in test_images:
+                test_images[label].append('{}/{}'.format(data_path, img_name))
+            else:
+                test_images[label] = ['{}/{}'.format(data_path, img_name)]
+    torch.save({'train': train_images, 'test': test_images}, '{}/{}'.format(data_path, data_dicts))
 
 
 if __name__ == '__main__':
-    train_image_json, test_image_json = 'data_dict_emb.pth', 'test_images.json'
-    process_car_data('data/cars')
-    # process_cub_data('data/cub')
-    # process_sop_data('data/sop')
+    data_dicts = 'data_dicts.pth'
+    process_car_data('data/car')
+    process_cub_data('data/cub')
+    process_sop_data('data/sop')
