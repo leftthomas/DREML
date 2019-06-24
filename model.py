@@ -99,7 +99,7 @@ class Model(nn.Module):
         self.features = nn.Sequential(*layers)
 
         # classifier
-        self.fc = nn.Linear(512, num_class)
+        self.fc = nn.Linear(4 * 512, num_class)
         # self.fc = CapsuleLinear(out_capsules=num_class, in_length=64, out_length=32)
 
         # embedding
