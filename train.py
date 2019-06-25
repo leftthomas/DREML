@@ -3,6 +3,7 @@ import copy
 import random
 
 import torch
+import torch.nn.functional as F
 from torch.optim import Adam
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data.dataloader import DataLoader
@@ -63,7 +64,7 @@ def eval(model, index):
         for data in data_loader:
             inputs_bt, labels_bt = data
             fvec = model(inputs_bt.to(DEVICE))
-            # fvec = F.normalize(fvec)
+            fvec = F.normalize(fvec)
             Fvecs.append(fvec.cpu())
 
     Fvecs_all = torch.cat(Fvecs, 0)
