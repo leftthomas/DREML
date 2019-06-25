@@ -12,9 +12,8 @@ from utils import ProxyStaticLoss, ImageReader
 from utils import create_id, get_transform, acc, load_data
 
 
-def train(model):
-    # Set model to training mode
-    model.train()
+def train(net):
+    net.train()
     dsets = ImageReader(meta_data_dict, get_transform(DATA_NAME, 'train'))
     data_loader = DataLoader(dsets, batch_size=BATCH_SIZE, shuffle=True, num_workers=8)
 
@@ -24,7 +23,7 @@ def train(model):
     for data in data_loader:
         optimizer.zero_grad()
         inputs_bt, labels_bt = data
-        fvec = model(inputs_bt.to(DEVICE))
+        fvec = net(inputs_bt.to(DEVICE))
         loss = criterion(fvec, labels_bt)
         loss.backward()
         optimizer.step()
@@ -37,8 +36,8 @@ def train(model):
     return L_data / N_data, T_data / N_data
 
 
-def eval(model, index):
-    model.eval()
+def eval(net, index):
+    net.eval()
     dsets = ImageReader(test_data, get_transform(DATA_NAME, 'test'))
     data_loader = DataLoader(dsets, BATCH_SIZE, shuffle=False, num_workers=8)
 
@@ -46,7 +45,7 @@ def eval(model, index):
     with torch.no_grad():
         for data in data_loader:
             inputs_bt, labels_bt = data
-            fvec = model(inputs_bt.to(DEVICE))
+            fvec = net(inputs_bt.to(DEVICE))
             fvec = F.normalize(fvec)
             Fvecs.append(fvec.cpu())
 
@@ -84,19 +83,18 @@ if __name__ == '__main__':
         model = Model(META_CLASS_SIZE).to(DEVICE)
         optimizer = Adam(model.parameters())
         lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)], gamma=0.01)
-        criterion = ProxyStaticLoss(META_CLASS_SIZE, META_CLASS_SIZE)
+        criterion = ProxyStaticLoss(META_CLASS_SIZE)
         # recording epoch acc and best result
         best_acc = 0
-        for epoch in range(NUM_EPOCH):
-            print('Epoch {}/{} \n '.format(epoch, NUM_EPOCH - 1) + '-' * 40)
+        for epoch in range(1, NUM_EPOCH + 1):
             lr_scheduler.step(epoch)
             tra_loss, tra_acc = train(model)
-            print('tra - Loss:{:.4f} - Acc:{:.4f}'.format(tra_loss, tra_acc))
+            print('Epoch {}/{} - Loss:{:.4f} - Acc:{:.4f}'.format(epoch, NUM_EPOCH, tra_loss, tra_acc))
             # deep copy the model
-            if epoch >= 1 and tra_acc > best_acc:
+            if tra_acc > best_acc:
                 best_acc = tra_acc
                 best_model = copy.deepcopy(model)
-                torch.save(best_model, 'epochs/model_{:02}.pth'.format(i))
-        print('Best tra acc: {:.2f}'.format(best_acc))
+                torch.save(model, 'epochs/model_{:02}.pth'.format(i))
+        print('Best Acc: {:.4f}'.format(best_acc))
         eval(best_model, i)
-    acc('results/', ENSEMBLE_SIZE, recall_ids)
+    acc('epochs/', ENSEMBLE_SIZE, recall_ids)

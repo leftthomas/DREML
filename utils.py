@@ -55,6 +55,25 @@ def load_data(meta_id, data_dict):
     return meta_data_dict
 
 
+class ProxyStaticLoss(Module):
+    def __init__(self, proxy_num):
+        super(ProxyStaticLoss, self).__init__()
+        self.proxy = torch.eye(proxy_num).cuda()
+
+    def forward(self, fvec, fLvec):
+        N = fLvec.size(0)
+
+        # distance matrix
+        Dist = fvec.mm((self.proxy).t())
+
+        # loss
+        Dist = -F.log_softmax(Dist, dim=1)
+        loss = Dist[torch.arange(N), fLvec].mean()
+        print('loss:{:.4f}'.format(loss.item()), end='\r')
+
+        return loss
+
+
 def find_classes(data_dict):
     classes = [c for c in sorted(data_dict)]
     classes.sort()
@@ -141,26 +160,6 @@ def recall(Fvec, imgLab, rank=None):
         return torch.Tensor(acc_list)
 
 
-class ProxyStaticLoss(Module):
-    def __init__(self, embed_size, proxy_num):
-        """one proxy per class"""
-        super(ProxyStaticLoss, self).__init__()
-        self.proxy = torch.eye(proxy_num).cuda()
-
-    def forward(self, fvec, fLvec):
-        N = fLvec.size(0)
-
-        # distance matrix
-        Dist = fvec.mm((self.proxy).t())
-
-        # loss
-        Dist = -F.log_softmax(Dist, dim=1)
-        loss = Dist[torch.arange(N), fLvec].mean()
-        print('loss:{:.4f}'.format(loss.item()), end='\r')
-
-        return loss
-
-
 def acc(src, L, recall_ids):
     # src: result directory
     # L : total ensembled size
@@ -169,7 +168,7 @@ def acc(src, L, recall_ids):
     dsets = torch.load(src + 'testdsets.pth')
 
     # loading feature vectors
-    R = [torch.load(src + str(d) + 'testFvecs.pth') for d in range(L)]
+    R = [torch.load(src + str(d) + 'testFvecs.pth') for d in range(1, L + 1)]
     R = torch.cat(R, 1)
     print(R.size())
 
