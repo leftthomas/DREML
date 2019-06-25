@@ -22,6 +22,39 @@ def get_transform(data_name, data_type):
     return transform
 
 
+# random assign meta class for all classes
+def create_id(meta_class_size, num_class):
+    multiple = num_class // meta_class_size
+    remain = num_class % meta_class_size
+    if remain != 0:
+        multiple += 1
+
+    idx_all = []
+    for _ in range(multiple):
+        idx_base = [j for j in range(meta_class_size)]
+        random.shuffle(idx_base)
+        idx_all += idx_base
+
+    idx_all = idx_all[:num_class]
+    random.shuffle(idx_all)
+    return idx_all
+
+
+# according meta class to load data
+def load_data(meta_id, data_dict):
+    # balance data for each class
+    num_samples, meta_data_dict = 300, {}
+    for index, label in enumerate(sorted(data_dict)):
+        meta_class, image_list = meta_id[index], data_dict[label]
+        if len(image_list) > num_samples:
+            image_list = random.sample(image_list, num_samples)
+        if meta_class in meta_data_dict:
+            meta_data_dict[meta_class] += image_list
+        else:
+            meta_data_dict[meta_class] = image_list
+    return meta_data_dict
+
+
 def find_classes(data_dict):
     classes = [c for c in sorted(data_dict)]
     classes.sort()
@@ -79,27 +112,6 @@ class ImageReader(Dataset):
 
     def __len__(self):
         return len(self.imgs)
-
-
-def create_id(meta_class_size, ensemble_size, num_class):
-    multiple = num_class // meta_class_size
-    remain = num_class % meta_class_size
-    if remain != 0:
-        multiple += 1
-
-    ids = torch.zeros(num_class, ensemble_size, dtype=torch.long)
-    for i in range(ensemble_size):
-        idx_all = []
-        for _ in range(multiple):
-            idx_base = [j for j in range(meta_class_size)]
-            random.shuffle(idx_base)
-            idx_all += idx_base
-
-        idx_all = idx_all[:num_class]
-        random.shuffle(idx_all)
-        ids[:, i] = torch.tensor(idx_all)
-
-    return ids
 
 
 def recall(Fvec, imgLab, rank=None):

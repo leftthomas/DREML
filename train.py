@@ -1,6 +1,5 @@
 import argparse
 import copy
-import random
 
 import torch
 import torch.nn.functional as F
@@ -10,29 +9,13 @@ from torch.utils.data.dataloader import DataLoader
 
 from model import Model
 from utils import ProxyStaticLoss, ImageReader
-from utils import create_id, get_transform, acc
-
-
-def load_data(meta_id):
-    # balance data for each class
-    TH = 300
-    # append image
-    data_dict_meta = {i: [] for i in range(max(meta_id) + 1)}
-    for i, c in idx_to_ori_class.items():
-        meta_class_id = meta_id[i]
-        tra_imgs = train_data[c]
-        if len(tra_imgs) > TH:
-            tra_imgs = random.sample(tra_imgs, TH)
-        data_dict_meta[meta_class_id] += tra_imgs
-    classSize = len(data_dict_meta)
-
-    return data_dict_meta, classSize
+from utils import create_id, get_transform, acc, load_data
 
 
 def train(model):
     # Set model to training mode
     model.train()
-    dsets = ImageReader(data_dict_meta, get_transform(DATA_NAME, 'train'))
+    dsets = ImageReader(meta_data_dict, get_transform(DATA_NAME, 'train'))
     data_loader = DataLoader(dsets, batch_size=BATCH_SIZE, shuffle=True, num_workers=8)
 
     L_data, T_data, N_data = 0.0, 0, 0
@@ -68,8 +51,8 @@ def eval(model, index):
             Fvecs.append(fvec.cpu())
 
     Fvecs_all = torch.cat(Fvecs, 0)
-    torch.save(dsets, 'results/testdsets.pth')
-    torch.save(Fvecs_all, 'results/' + str(index) + 'testFvecs.pth')
+    torch.save(dsets, 'epochs/testdsets.pth')
+    torch.save(Fvecs_all, 'epochs/' + str(index) + 'testFvecs.pth')
 
 
 if __name__ == '__main__':
@@ -92,20 +75,16 @@ if __name__ == '__main__':
         results['train_recall_{}'.format(k)], results['test_recall_{}'.format(k)] = [], []
 
     data_dict = torch.load('data/{}/data_dicts.pth'.format(DATA_NAME))
-    ID = create_id(META_CLASS_SIZE, ENSEMBLE_SIZE, len(data_dict['train']))
     train_data, test_data = data_dict['train'], data_dict['test']
-    # sort classes and fix the class order
-    all_class = sorted(train_data)
-    idx_to_ori_class = {i: all_class[i] for i in range(len(all_class))}
 
-    for i in range(ID.size(1)):
+    for i in range(1, ENSEMBLE_SIZE + 1):
         print('Training ensemble #{}'.format(i))
-        meta_id = ID[:, i].tolist()
-        data_dict_meta, classSize = load_data(meta_id)
-        model = Model(classSize).to(DEVICE)
+        meta_id = create_id(META_CLASS_SIZE, len(data_dict['train']))
+        meta_data_dict = load_data(meta_id, train_data)
+        model = Model(META_CLASS_SIZE).to(DEVICE)
         optimizer = Adam(model.parameters())
         lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)], gamma=0.01)
-        criterion = ProxyStaticLoss(classSize, classSize)
+        criterion = ProxyStaticLoss(META_CLASS_SIZE, META_CLASS_SIZE)
         # recording epoch acc and best result
         best_acc = 0
         for epoch in range(NUM_EPOCH):
@@ -117,7 +96,7 @@ if __name__ == '__main__':
             if epoch >= 1 and tra_acc > best_acc:
                 best_acc = tra_acc
                 best_model = copy.deepcopy(model)
-                torch.save(best_model, 'results/model_{:02}.pth'.format(i))
+                torch.save(best_model, 'epochs/model_{:02}.pth'.format(i))
         print('Best tra acc: {:.2f}'.format(best_acc))
         eval(best_model, i)
     acc('results/', ENSEMBLE_SIZE, recall_ids)
