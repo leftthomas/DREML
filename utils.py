@@ -14,11 +14,11 @@ rgb_std = {'car': [0.2237, 0.2193, 0.2568], 'cub': [0.2767, 0.2760, 0.2850], 'so
 def get_transform(data_name, data_type):
     normalize = transforms.Normalize(rgb_mean[data_name], rgb_std[data_name])
     if data_type == 'train':
-        transform = transforms.Compose([transforms.Resize(224), transforms.RandomCrop(224),
+        transform = transforms.Compose([transforms.Resize(int(256 * 1.1)), transforms.RandomCrop(256),
                                         transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize])
     else:
         transform = transforms.Compose(
-            [transforms.Resize(224), transforms.CenterCrop(224), transforms.ToTensor(), normalize])
+            [transforms.Resize(256), transforms.CenterCrop(256), transforms.ToTensor(), normalize])
     return transform
 
 
