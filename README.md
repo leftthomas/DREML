@@ -7,10 +7,6 @@ A PyTorch implementation of Diverse Capsule Network based on the paper [Diverse 
 ```
 conda install pytorch torchvision -c pytorch
 ```
-- PyTorchNet
-```
-pip install git+https://github.com/pytorch/tnt.git@master
-```
 - capsule-layer
 ```
 pip install git+https://github.com/leftthomas/CapsuleLayer.git@master
@@ -26,7 +22,7 @@ You should download these datasets by yourself, and extract them into `data` dir
 ## Usage
 ### Train Model
 ```
-visdom -logging_level WARNING & python train.py --num_epochs 12
+python train.py --num_epochs 12
 optional arguments:
 --data_name                   dataset name [default value is 'car'](choices=['car', 'cub', 'sop'])
 --recalls                     selected recall [default value is '1,2,4,8']
@@ -35,17 +31,63 @@ optional arguments:
 --ensemble_size               ensemble model size [default value is 12]
 --meta_class_size             meta class size [default value is 12]
 ```
-Visdom now can be accessed by going to `127.0.0.1:8097/$data_type` in your browser.
 
-## Results
-The train loss, recall and test loss, recall are showed on visdom.
+## Benchmarks
+Adam optimizer is used with learning rate scheduling. The models are trained with 12 epochs and batch size of 128 on one 
+NVIDIA Tesla V100 (32G) GPU.
 
-### car
-![result](results/car.png)
+The images are preprocessed with random resize, random crop, random horizontal flip, and normalize.
+Here is the recall details:
 
-### cub
-![result](results/cub.png)
-
-### sop
-![result](results/sop.png)
+<table>
+  <thead>
+    <tr>
+      <th>Dataset</th>
+      <th>Cars196(CNN)</th>
+      <th>CUB200(CNN)</th>
+      <th>SOP(CNN)</th>
+      <th>Cars196(Capsule)</th>
+      <th>CUB200(Capsule)</th>
+      <th>SOP(Capsule)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center">R@1</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+    </tr>
+    <tr>
+      <td align="center">R@2</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+    </tr>
+    <tr>
+      <td align="center">R@4</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+    </tr>
+    <tr>
+      <td align="center">R@8</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+    </tr>
+  </tbody>
+</table>
 

@@ -96,5 +96,5 @@ if __name__ == '__main__':
             if train_acc > best_acc:
                 best_acc = train_acc
                 best_model = copy.deepcopy(model)
-                torch.save(model, 'epochs/model_{:02}.pth'.format(i))
+                torch.save(model.state_dict(), 'epochs/model_{:02}.pth'.format(i))
         eval(best_model, test_data, i, recall_ids)
