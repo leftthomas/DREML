@@ -3,27 +3,28 @@ import copy
 
 import torch
 import torch.nn.functional as F
+from torch.nn import CrossEntropyLoss
 from torch.optim import Adam
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.utils.data.dataloader import DataLoader
 
 from model import Model
-from utils import ProxyStaticLoss, ImageReader
-from utils import create_id, get_transform, load_data, recall
+from utils import ImageReader, create_id, get_transform, load_data, recall
 
 
-def train(net, meta_data, optimizer):
+def train(net, data_dict, optim):
     net.train()
-    data_set = ImageReader(meta_data, get_transform(DATA_NAME, 'train'))
+    data_set = ImageReader(data_dict, get_transform(DATA_NAME, 'train'))
     data_loader = DataLoader(data_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=8)
 
     l_data, t_data, n_data = 0.0, 0, 0
     for inputs, labels in data_loader:
-        optimizer.zero_grad()
+        optim.zero_grad()
         out = net(inputs.to(DEVICE))
-        loss = criterion(out, labels)
+        loss = criterion(out, labels.to(DEVICE))
+        print('loss:{:.4f}'.format(loss.item()), end='\r')
         loss.backward()
-        optimizer.step()
+        optim.step()
         _, pred = torch.max(out, 1)
         l_data += loss.item()
         t_data += torch.sum(pred.cpu() == labels).item()
@@ -32,9 +33,9 @@ def train(net, meta_data, optimizer):
     return l_data / n_data, t_data / n_data
 
 
-def eval(net, ensemble_num, recalls):
+def eval(net, data_dict, ensemble_num, recalls):
     net.eval()
-    data_set = ImageReader(test_data, get_transform(DATA_NAME, 'test'))
+    data_set = ImageReader(data_dict, get_transform(DATA_NAME, 'test'))
     data_loader = DataLoader(data_set, BATCH_SIZE, shuffle=False, num_workers=8)
 
     features = []
@@ -51,7 +52,7 @@ def eval(net, ensemble_num, recalls):
     acc_list = recall(features, data_set.idx_to_class, rank=recalls)
     desc = ''
     for index, recall_id in enumerate(recalls):
-        desc += 'R@{}:{:.2f} '.format(recall_id, acc_list[index].item() * 100)
+        desc += 'R@{}:{:.2f}% '.format(recall_id, acc_list[index].item() * 100)
     print(desc)
 
 
@@ -70,34 +71,30 @@ if __name__ == '__main__':
     ENSEMBLE_SIZE, META_CLASS_SIZE = opt.ensemble_size, opt.meta_class_size
     recall_ids = [int(k) for k in RECALLS.split(',')]
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    results = {'train_loss': []}
-    for k in recall_ids:
-        results['train_recall_{}'.format(k)], results['test_recall_{}'.format(k)] = [], []
 
-    data_dict = torch.load('data/{}/data_dicts.pth'.format(DATA_NAME))
-    train_data, test_data = data_dict['train'], data_dict['test']
-
+    data_dicts = torch.load('data/{}/data_dicts.pth'.format(DATA_NAME))
+    train_data, test_data = data_dicts['train'], data_dicts['test']
     # sort classes and fix the class order
     all_class = sorted(train_data)
-    idx_to_ori_class = {i: all_class[i] for i in range(len(all_class))}
+    idx_to_class = {i: all_class[i] for i in range(len(all_class))}
 
     for i in range(1, ENSEMBLE_SIZE + 1):
         print('Training ensemble #{}'.format(i))
-        meta_id = create_id(META_CLASS_SIZE, len(data_dict['train']))
-        meta_data_dict = load_data(meta_id, idx_to_ori_class, train_data)
+        meta_id = create_id(META_CLASS_SIZE, len(data_dicts['train']))
+        meta_data_dict = load_data(meta_id, idx_to_class, train_data)
         model = Model(META_CLASS_SIZE).to(DEVICE)
         optimizer = Adam(model.parameters())
-        lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)], gamma=0.01)
-        criterion = ProxyStaticLoss()
+        lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)])
+        criterion = CrossEntropyLoss()
 
-        best_acc = 0
+        best_acc, best_model = 0, None
         for epoch in range(1, NUM_EPOCH + 1):
-            lr_scheduler.step()
-            tra_loss, tra_acc = train(model, meta_data_dict, optimizer)
-            print('Epoch {}/{} - Loss:{:.4f} - Acc:{:.4f}'.format(epoch, NUM_EPOCH, tra_loss, tra_acc))
+            lr_scheduler.step(epoch)
+            train_loss, train_acc = train(model, meta_data_dict, optimizer)
+            print('Epoch {}/{} - Loss:{:.4f} - Acc:{:.4f}'.format(epoch, NUM_EPOCH, train_loss, train_acc))
             # deep copy the model
-            if tra_acc > best_acc:
-                best_acc = tra_acc
+            if train_acc > best_acc:
+                best_acc = train_acc
                 best_model = copy.deepcopy(model)
                 torch.save(model, 'epochs/model_{:02}.pth'.format(i))
-        eval(best_model, i, recall_ids)
+        eval(best_model, test_data, i, recall_ids)
