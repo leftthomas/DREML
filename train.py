@@ -52,7 +52,7 @@ def eval(net, data_dict, ensemble_num, recalls):
     acc_list = recall(features, data_set.idx_to_class, rank=recalls)
     desc = ''
     for index, recall_id in enumerate(recalls):
-        desc += 'R@{}:{:.2f}% '.format(recall_id, acc_list[index].item() * 100)
+        desc += 'R@{}:{:.2f}% '.format(recall_id, acc_list[index] * 100)
     print(desc)
 
 

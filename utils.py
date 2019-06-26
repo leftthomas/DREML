@@ -58,47 +58,36 @@ class ImageReader(Dataset):
         classes = [c for c in sorted(data_dict)]
         classes.sort()
         class_to_idx = {classes[i]: i for i in range(len(classes))}
-        images, idx_to_class = [], {}
-        i1 = 0
+        images, idx_to_class, i = [], {}, 0
         for catg in sorted(data_dict):
-            for fdir in data_dict[catg]:
-                idx_to_class[i1] = class_to_idx[catg]
-                images.append((fdir, class_to_idx[catg]))
-                i1 += 1
+            for imgs in data_dict[catg]:
+                idx_to_class[i] = class_to_idx[catg]
+                images.append((imgs, class_to_idx[catg]))
+                i += 1
 
-        self.imgs = images
+        self.images = images
         self.idx_to_class = idx_to_class
         self.transform = transform
 
     def __getitem__(self, index):
-        path, target = self.imgs[index]
+        path, target = self.images[index]
         img = Image.open(path).convert('RGB')
         img = self.transform(img)
         return img, target
 
     def __len__(self):
-        return len(self.imgs)
+        return len(self.images)
 
 
-def recall(feature_vectors, img_labels, rank=None):
-    N = len(img_labels)
-    img_labels = torch.tensor([img_labels[i] for i in range(N)])
+def recall(feature_vectors, img_labels, rank):
+    num_images = len(img_labels)
+    img_labels = torch.tensor([img_labels[i] for i in range(num_images)])
+    sim_matrix = feature_vectors.mm(torch.t(feature_vectors))
+    sim_matrix[torch.eye(num_images).byte()] = -1
 
-    D = feature_vectors.mm(torch.t(feature_vectors))
-    D[torch.eye(len(img_labels)).byte()] = -1
-
-    if rank is None:
-        _, idx = D.sort(1, descending=True)
-        imgPre = img_labels[idx[:, 0]]
-        A = (imgPre == img_labels).float()
-        return (torch.sum(A) / N).item()
-    else:
-        _, idx = D.topk(rank[-1])
-        acc_list = []
-        for r in rank:
-            A = 0
-            for i in range(r):
-                imgPre = img_labels[idx[:, i]]
-                A += (imgPre == img_labels).float()
-            acc_list.append((torch.sum((A > 0).float()) / N).item())
-        return torch.tensor(acc_list)
+    idx = sim_matrix.argsort(dim=-1, descending=True)
+    acc_list = []
+    for r in rank:
+        correct = (img_labels[idx[:, 0:r]] == img_labels.unsqueeze(dim=-1)).any(dim=-1).float()
+        acc_list.append((torch.sum(correct) / num_images).item())
+    return acc_list
