@@ -58,21 +58,16 @@ class ImageReader(Dataset):
         classes = [c for c in sorted(data_dict)]
         classes.sort()
         class_to_idx = {classes[i]: i for i in range(len(classes))}
-        images, idx_to_class, intervals = [], {}, []
-        i0, i1 = 0, 0
+        images, idx_to_class = [], {}
+        i1 = 0
         for catg in sorted(data_dict):
             for fdir in data_dict[catg]:
                 idx_to_class[i1] = class_to_idx[catg]
                 images.append((fdir, class_to_idx[catg]))
                 i1 += 1
-            intervals.append((i0, i1))
-            i0 = i1
 
         self.imgs = images
-        self.classes = classes
-        self.class_to_idx = class_to_idx  # cat->1
-        self.intervals = intervals
-        self.idx_to_class = idx_to_class  # i(img idx)->2(class)
+        self.idx_to_class = idx_to_class
         self.transform = transform
 
     def __getitem__(self, index):
@@ -85,20 +80,17 @@ class ImageReader(Dataset):
         return len(self.imgs)
 
 
-def recall(Fvec, imgLab, rank=None):
-    # Fvec: torch.Tensor. N by dim feature vector
-    # imgLab: a list. N related labels list
-    # rank: a list. input k(R@k) you want to calcualte 
-    N = len(imgLab)
-    imgLab = torch.LongTensor([imgLab[i] for i in range(len(imgLab))])
+def recall(feature_vectors, img_labels, rank=None):
+    N = len(img_labels)
+    img_labels = torch.tensor([img_labels[i] for i in range(N)])
 
-    D = Fvec.mm(torch.t(Fvec))
-    D[torch.eye(len(imgLab)).byte()] = -1
+    D = feature_vectors.mm(torch.t(feature_vectors))
+    D[torch.eye(len(img_labels)).byte()] = -1
 
     if rank is None:
         _, idx = D.sort(1, descending=True)
-        imgPre = imgLab[idx[:, 0]]
-        A = (imgPre == imgLab).float()
+        imgPre = img_labels[idx[:, 0]]
+        A = (imgPre == img_labels).float()
         return (torch.sum(A) / N).item()
     else:
         _, idx = D.topk(rank[-1])
@@ -106,8 +98,7 @@ def recall(Fvec, imgLab, rank=None):
         for r in rank:
             A = 0
             for i in range(r):
-                imgPre = imgLab[idx[:, i]]
-                A += (imgPre == imgLab).float()
+                imgPre = img_labels[idx[:, i]]
+                A += (imgPre == img_labels).float()
             acc_list.append((torch.sum((A > 0).float()) / N).item())
-        return torch.Tensor(acc_list)
-
+        return torch.tensor(acc_list)
