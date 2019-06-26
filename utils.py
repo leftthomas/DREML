@@ -40,34 +40,31 @@ def create_id(meta_class_size, num_class):
     return idx_all
 
 
-# according meta class to load data
-def load_data(meta_id, data_dict):
+def load_data(meta_id, idx_to_ori_class, data_dict):
     # balance data for each class
-    num_samples, meta_data_dict = 300, {}
-    for index, label in enumerate(sorted(data_dict)):
-        meta_class, image_list = meta_id[index], data_dict[label]
-        if len(image_list) > num_samples:
-            image_list = random.sample(image_list, num_samples)
-        if meta_class in meta_data_dict:
-            meta_data_dict[meta_class] += image_list
-        else:
-            meta_data_dict[meta_class] = image_list
-    return meta_data_dict
+    TH = 300
+    # append image
+    data_dict_meta = {i: [] for i in range(max(meta_id) + 1)}
+    for i, c in idx_to_ori_class.items():
+        meta_class_id = meta_id[i]
+        tra_imgs = data_dict[c]
+        if len(tra_imgs) > TH:
+            tra_imgs = random.sample(tra_imgs, TH)
+        data_dict_meta[meta_class_id] += tra_imgs
+    classSize = len(data_dict_meta)
+
+    return data_dict_meta, classSize
 
 
 class ProxyStaticLoss(Module):
-    def __init__(self, proxy_num):
+    def __init__(self):
         super(ProxyStaticLoss, self).__init__()
-        self.proxy = torch.eye(proxy_num).cuda()
 
     def forward(self, fvec, fLvec):
         N = fLvec.size(0)
 
-        # distance matrix
-        Dist = fvec.mm((self.proxy).t())
-
         # loss
-        Dist = -F.log_softmax(Dist, dim=1)
+        Dist = -F.log_softmax(fvec, dim=1)
         loss = Dist[torch.arange(N), fLvec].mean()
         print('loss:{:.4f}'.format(loss.item()), end='\r')
 
@@ -160,15 +157,13 @@ def recall(Fvec, imgLab, rank=None):
         return torch.Tensor(acc_list)
 
 
-def acc(src, L, recall_ids):
-    # src: result directory
+def acc(L, recall_ids):
     # L : total ensembled size
-
     # loading dataset info
-    dsets = torch.load(src + 'testdsets.pth')
+    dsets = torch.load('epochs/test_dataset.pth')
 
     # loading feature vectors
-    R = [torch.load(src + str(d) + 'testFvecs.pth') for d in range(1, L + 1)]
+    R = [torch.load('epochs/test_features_{:02}.pth'.format(d)) for d in range(1, L + 1)]
     R = torch.cat(R, 1)
     print(R.size())
 

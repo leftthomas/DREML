@@ -1,5 +1,6 @@
 import argparse
 import copy
+import os
 
 import torch
 import torch.nn.functional as F
@@ -12,46 +13,41 @@ from utils import ProxyStaticLoss, ImageReader
 from utils import create_id, get_transform, acc, load_data
 
 
-def train(net):
+def train(net, meta_data, optimizer):
     net.train()
-    dsets = ImageReader(meta_data_dict, get_transform(DATA_NAME, 'train'))
-    data_loader = DataLoader(dsets, batch_size=BATCH_SIZE, shuffle=True, num_workers=8)
+    data_set = ImageReader(meta_data, get_transform(DATA_NAME, 'train'))
+    data_loader = DataLoader(data_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=8)
 
-    L_data, T_data, N_data = 0.0, 0, 0
-
-    # iterate batch
-    for data in data_loader:
+    l_data, t_data, n_data = 0.0, 0, 0
+    for inputs, labels in data_loader:
         optimizer.zero_grad()
-        inputs_bt, labels_bt = data
-        fvec = net(inputs_bt.to(DEVICE))
-        loss = criterion(fvec, labels_bt)
+        out = net(inputs.to(DEVICE))
+        loss = criterion(out, labels)
         loss.backward()
         optimizer.step()
-        _, preds_bt = torch.max(fvec.cpu(), 1)
+        _, pred = torch.max(out, 1)
+        l_data += loss.item()
+        t_data += torch.sum(pred.cpu() == labels).item()
+        n_data += len(labels)
 
-        L_data += loss.item()
-        T_data += torch.sum(preds_bt == labels_bt).item()
-        N_data += len(labels_bt)
-
-    return L_data / N_data, T_data / N_data
+    return l_data / n_data, t_data / n_data
 
 
-def eval(net, index):
+def eval(net, ensemble_num):
     net.eval()
-    dsets = ImageReader(test_data, get_transform(DATA_NAME, 'test'))
-    data_loader = DataLoader(dsets, BATCH_SIZE, shuffle=False, num_workers=8)
+    data_set = ImageReader(test_data, get_transform(DATA_NAME, 'test'))
+    data_loader = DataLoader(data_set, BATCH_SIZE, shuffle=False, num_workers=8)
 
-    Fvecs = []
+    features = []
     with torch.no_grad():
-        for data in data_loader:
-            inputs_bt, labels_bt = data
-            fvec = net(inputs_bt.to(DEVICE))
-            fvec = F.normalize(fvec)
-            Fvecs.append(fvec.cpu())
-
-    Fvecs_all = torch.cat(Fvecs, 0)
-    torch.save(dsets, 'epochs/testdsets.pth')
-    torch.save(Fvecs_all, 'epochs/' + str(index) + 'testFvecs.pth')
+        for inputs, labels in data_loader:
+            out = net(inputs.to(DEVICE))
+            out = F.normalize(out)
+            features.append(out.cpu())
+    features = torch.cat(features, 0)
+    if not os.path.exists('epochs/test_dataset.pth'):
+        torch.save(data_set, 'epochs/test_dataset.pth')
+    torch.save(features, 'epochs/test_features_{:02}.pth'.format(ensemble_num))
 
 
 if __name__ == '__main__':
@@ -76,19 +72,23 @@ if __name__ == '__main__':
     data_dict = torch.load('data/{}/data_dicts.pth'.format(DATA_NAME))
     train_data, test_data = data_dict['train'], data_dict['test']
 
+    # sort classes and fix the class order
+    all_class = sorted(train_data)
+    idx_to_ori_class = {i: all_class[i] for i in range(len(all_class))}
+
     for i in range(1, ENSEMBLE_SIZE + 1):
         print('Training ensemble #{}'.format(i))
         meta_id = create_id(META_CLASS_SIZE, len(data_dict['train']))
-        meta_data_dict = load_data(meta_id, train_data)
-        model = Model(META_CLASS_SIZE).to(DEVICE)
+        meta_data_dict, classSize = load_data(meta_id, idx_to_ori_class, train_data)
+        model = Model(classSize).to(DEVICE)
         optimizer = Adam(model.parameters())
         lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)], gamma=0.01)
-        criterion = ProxyStaticLoss(META_CLASS_SIZE)
+        criterion = ProxyStaticLoss()
         # recording epoch acc and best result
         best_acc = 0
         for epoch in range(1, NUM_EPOCH + 1):
-            lr_scheduler.step(epoch)
-            tra_loss, tra_acc = train(model)
+            lr_scheduler.step()
+            tra_loss, tra_acc = train(model, meta_data_dict, optimizer)
             print('Epoch {}/{} - Loss:{:.4f} - Acc:{:.4f}'.format(epoch, NUM_EPOCH, tra_loss, tra_acc))
             # deep copy the model
             if tra_acc > best_acc:
@@ -97,4 +97,4 @@ if __name__ == '__main__':
                 torch.save(model, 'epochs/model_{:02}.pth'.format(i))
         print('Best Acc: {:.4f}'.format(best_acc))
         eval(best_model, i)
-    acc('epochs/', ENSEMBLE_SIZE, recall_ids)
+    acc(ENSEMBLE_SIZE, recall_ids)
