@@ -51,9 +51,7 @@ def load_data(meta_id, idx_to_ori_class, data_dict):
         if len(tra_imgs) > TH:
             tra_imgs = random.sample(tra_imgs, TH)
         data_dict_meta[meta_class_id] += tra_imgs
-    classSize = len(data_dict_meta)
-
-    return data_dict_meta, classSize
+    return data_dict_meta
 
 
 class ProxyStaticLoss(Module):
@@ -156,20 +154,3 @@ def recall(Fvec, imgLab, rank=None):
             acc_list.append((torch.sum((A > 0).float()) / N).item())
         return torch.Tensor(acc_list)
 
-
-def acc(L, recall_ids):
-    # L : total ensembled size
-    # loading dataset info
-    dsets = torch.load('epochs/test_dataset.pth')
-
-    # loading feature vectors
-    R = [torch.load('epochs/test_features_{:02}.pth'.format(d)) for d in range(1, L + 1)]
-    R = torch.cat(R, 1)
-    print(R.size())
-
-    acc_list = recall(R, dsets.idx_to_class, rank=recall_ids)
-
-    desc = ''
-    for index, id in enumerate(recall_ids):
-        desc += 'R@{}:{:.2f} '.format(id, acc_list[index].item() * 100)
-    print(desc)

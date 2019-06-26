@@ -1,6 +1,5 @@
 import argparse
 import copy
-import os
 
 import torch
 import torch.nn.functional as F
@@ -10,7 +9,7 @@ from torch.utils.data.dataloader import DataLoader
 
 from model import Model
 from utils import ProxyStaticLoss, ImageReader
-from utils import create_id, get_transform, acc, load_data
+from utils import create_id, get_transform, load_data, recall
 
 
 def train(net, meta_data, optimizer):
@@ -33,7 +32,7 @@ def train(net, meta_data, optimizer):
     return l_data / n_data, t_data / n_data
 
 
-def eval(net, ensemble_num):
+def eval(net, ensemble_num, recalls):
     net.eval()
     data_set = ImageReader(test_data, get_transform(DATA_NAME, 'test'))
     data_loader = DataLoader(data_set, BATCH_SIZE, shuffle=False, num_workers=8)
@@ -45,9 +44,15 @@ def eval(net, ensemble_num):
             out = F.normalize(out)
             features.append(out.cpu())
     features = torch.cat(features, 0)
-    if not os.path.exists('epochs/test_dataset.pth'):
-        torch.save(data_set, 'epochs/test_dataset.pth')
     torch.save(features, 'epochs/test_features_{:02}.pth'.format(ensemble_num))
+    # load feature vectors
+    features = [torch.load('epochs/test_features_{:02}.pth'.format(d)) for d in range(1, ensemble_num + 1)]
+    features = torch.cat(features, 1)
+    acc_list = recall(features, data_set.idx_to_class, rank=recalls)
+    desc = ''
+    for index, recall_id in enumerate(recalls):
+        desc += 'R@{}:{:.2f} '.format(recall_id, acc_list[index].item() * 100)
+    print(desc)
 
 
 if __name__ == '__main__':
@@ -79,12 +84,12 @@ if __name__ == '__main__':
     for i in range(1, ENSEMBLE_SIZE + 1):
         print('Training ensemble #{}'.format(i))
         meta_id = create_id(META_CLASS_SIZE, len(data_dict['train']))
-        meta_data_dict, classSize = load_data(meta_id, idx_to_ori_class, train_data)
-        model = Model(classSize).to(DEVICE)
+        meta_data_dict = load_data(meta_id, idx_to_ori_class, train_data)
+        model = Model(META_CLASS_SIZE).to(DEVICE)
         optimizer = Adam(model.parameters())
         lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)], gamma=0.01)
         criterion = ProxyStaticLoss()
-        # recording epoch acc and best result
+
         best_acc = 0
         for epoch in range(1, NUM_EPOCH + 1):
             lr_scheduler.step()
@@ -95,6 +100,4 @@ if __name__ == '__main__':
                 best_acc = tra_acc
                 best_model = copy.deepcopy(model)
                 torch.save(model, 'epochs/model_{:02}.pth'.format(i))
-        print('Best Acc: {:.4f}'.format(best_acc))
-        eval(best_model, i)
-    acc(ENSEMBLE_SIZE, recall_ids)
+        eval(best_model, i, recall_ids)
