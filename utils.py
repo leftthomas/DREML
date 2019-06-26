@@ -58,19 +58,16 @@ class ImageReader(Dataset):
         classes = [c for c in sorted(data_dict)]
         classes.sort()
         class_to_idx = {classes[i]: i for i in range(len(classes))}
-        images, idx_to_class, i = [], {}, 0
-        for catg in sorted(data_dict):
-            for imgs in data_dict[catg]:
-                idx_to_class[i] = class_to_idx[catg]
-                images.append((imgs, class_to_idx[catg]))
-                i += 1
+        self.images, self.labels = [], []
+        for label in sorted(data_dict):
+            for img in data_dict[label]:
+                self.images.append(img)
+                self.labels.append(class_to_idx[label])
 
-        self.images = images
-        self.idx_to_class = idx_to_class
         self.transform = transform
 
     def __getitem__(self, index):
-        path, target = self.images[index]
+        path, target = self.images[index], self.labels[index]
         img = Image.open(path).convert('RGB')
         img = self.transform(img)
         return img, target
@@ -81,7 +78,7 @@ class ImageReader(Dataset):
 
 def recall(feature_vectors, img_labels, rank):
     num_images = len(img_labels)
-    img_labels = torch.tensor([img_labels[i] for i in range(num_images)])
+    img_labels = torch.tensor(img_labels)
     sim_matrix = feature_vectors.mm(torch.t(feature_vectors))
     sim_matrix[torch.eye(num_images).byte()] = -1
 

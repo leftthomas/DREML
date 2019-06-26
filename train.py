@@ -49,7 +49,7 @@ def eval(net, data_dict, ensemble_num, recalls):
     # load feature vectors
     features = [torch.load('epochs/test_features_{:02}.pth'.format(d)) for d in range(1, ensemble_num + 1)]
     features = torch.cat(features, 1)
-    acc_list = recall(features, data_set.idx_to_class, rank=recalls)
+    acc_list = recall(features, data_set.labels, rank=recalls)
     desc = ''
     for index, recall_id in enumerate(recalls):
         desc += 'R@{}:{:.2f}% '.format(recall_id, acc_list[index] * 100)
