@@ -45,9 +45,9 @@ def eval(net, data_dict, ensemble_num, recalls):
             out = F.normalize(out)
             features.append(out.cpu())
     features = torch.cat(features, 0)
-    torch.save(features, 'epochs/{}_test_features_{:02}.pth'.format(DATA_NAME, ensemble_num))
+    torch.save(features, 'results/{}_test_features_{:03}.pth'.format(DATA_NAME, ensemble_num))
     # load feature vectors
-    features = [torch.load('epochs/{}_test_features_{:02}.pth'.format(DATA_NAME, d)) for d in
+    features = [torch.load('results/{}_test_features_{:03}.pth'.format(DATA_NAME, d)) for d in
                 range(1, ensemble_num + 1)]
     features = torch.cat(features, 1)
     acc_list = recall(features, data_set.labels, rank=recalls)
@@ -97,5 +97,5 @@ if __name__ == '__main__':
             if train_acc > best_acc:
                 best_acc = train_acc
                 best_model = copy.deepcopy(model)
-                torch.save(model.state_dict(), 'epochs/{}_model_{:02}.pth'.format(DATA_NAME, i))
+                torch.save(model.state_dict(), 'epochs/{}_model_{:03}.pth'.format(DATA_NAME, i))
         eval(best_model, test_data, i, recall_ids)
