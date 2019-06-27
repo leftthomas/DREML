@@ -86,10 +86,7 @@ if __name__ == '__main__':
         meta_id = create_id(META_CLASS_SIZE, len(data_dicts['train']))
         meta_data_dict = load_data(meta_id, idx_to_class, train_data)
         model = Model(META_CLASS_SIZE, CLASSIFIER_TYPE).to(DEVICE)
-
-        optim_configs = [{'params': model.features.parameters(), 'lr': 1e-4 * 10},
-                         {'params': model.fc.parameters(), 'lr': 1e-4}]
-        optimizer = Adam(optim_configs, lr=1e-4)
+        optimizer = Adam(model.parameters(), lr=1e-4)
         lr_scheduler = MultiStepLR(optimizer, milestones=[int(NUM_EPOCHS * 0.5), int(NUM_EPOCHS * 0.7)], gamma=0.1)
         criterion = CrossEntropyLoss()
 
