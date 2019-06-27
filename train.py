@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
     opt = parser.parse_args()
 
-    DATA_NAME, RECALLS, BATCH_SIZE, NUM_EPOCH = opt.data_name, opt.recalls, opt.batch_size, opt.num_epochs
+    DATA_NAME, RECALLS, BATCH_SIZE, NUM_EPOCHS = opt.data_name, opt.recalls, opt.batch_size, opt.num_epochs
     ENSEMBLE_SIZE, META_CLASS_SIZE, CLASSIFIER_TYPE = opt.ensemble_size, opt.meta_class_size, opt.classifier_type
     recall_ids = [int(k) for k in RECALLS.split(',')]
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -86,15 +86,18 @@ if __name__ == '__main__':
         meta_id = create_id(META_CLASS_SIZE, len(data_dicts['train']))
         meta_data_dict = load_data(meta_id, idx_to_class, train_data)
         model = Model(META_CLASS_SIZE, CLASSIFIER_TYPE).to(DEVICE)
-        optimizer = Adam(model.parameters())
-        lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)])
+
+        optim_configs = [{'params': model.features.parameters(), 'lr': 1e-4 * 10},
+                         {'params': model.fc.parameters(), 'lr': 1e-4}]
+        optimizer = Adam(optim_configs, lr=1e-4)
+        lr_scheduler = MultiStepLR(optimizer, milestones=[int(NUM_EPOCHS * 0.5), int(NUM_EPOCHS * 0.7)], gamma=0.1)
         criterion = CrossEntropyLoss()
 
         best_acc, best_model = 0, None
-        for epoch in range(1, NUM_EPOCH + 1):
+        for epoch in range(1, NUM_EPOCHS + 1):
             lr_scheduler.step(epoch)
             train_loss, train_acc = train(model, meta_data_dict, optimizer)
-            print('Epoch {}/{} - Loss:{:.4f} - Acc:{:.4f}'.format(epoch, NUM_EPOCH, train_loss, train_acc))
+            print('Epoch {}/{} - Loss:{:.4f} - Acc:{:.4f}'.format(epoch, NUM_EPOCHS, train_loss, train_acc))
             # deep copy the model
             if train_acc > best_acc:
                 best_acc = train_acc
