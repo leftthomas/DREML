@@ -54,36 +54,63 @@ Here is the recall details:
   <tbody>
     <tr>
       <td align="center">R@1</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
+      <td align="center">81.97%</td>
+      <td align="center">54.96%</td>
+      <td align="center">51.34%</td>
       <td align="center">/</td>
       <td align="center">/</td>
       <td align="center">/</td>
     </tr>
     <tr>
       <td align="center">R@2</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
+      <td align="center">88.27%</td>
+      <td align="center">66.41%</td>
+      <td align="center">56.36%</td>
       <td align="center">/</td>
       <td align="center">/</td>
       <td align="center">/</td>
     </tr>
     <tr>
       <td align="center">R@4</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
+      <td align="center">92.62%</td>
+      <td align="center">76.33%</td>
+      <td align="center">60.95%</td>
       <td align="center">/</td>
       <td align="center">/</td>
       <td align="center">/</td>
     </tr>
     <tr>
       <td align="center">R@8</td>
+      <td align="center">95.28%</td>
+      <td align="center">84.60%</td>
+      <td align="center">65.06%</td>
       <td align="center">/</td>
       <td align="center">/</td>
       <td align="center">/</td>
+    </tr>
+    <tr>
+      <td align="center">R@10</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">66.31%</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+    </tr>
+    <tr>
+      <td align="center">R@100</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">78.76%</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+      <td align="center">/</td>
+    </tr>
+    <tr>
+      <td align="center">R@1000</td>
+      <td align="center">95.28%</td>
+      <td align="center">84.60%</td>
+      <td align="center">89.04%</td>
       <td align="center">/</td>
       <td align="center">/</td>
       <td align="center">/</td>
