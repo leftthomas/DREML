@@ -30,10 +30,11 @@ optional arguments:
 --num_epochs                  train epochs number [default value is 12]
 --ensemble_size               ensemble model size [default value is 12]
 --meta_class_size             meta class size [default value is 12]
+--classifier_type             classifier type [default value is 'capsule'](choices:['capsule', 'linear'])
 ```
 
 ## Benchmarks
-Adam optimizer is used with learning rate scheduling. The models are trained with 12 epochs and batch size of 128 on one 
+Adam optimizer is used with learning rate scheduling. The models are trained with batch size of 128 on one 
 NVIDIA Tesla V100 (32G) GPU.
 
 The images are preprocessed with random resize, random crop, random horizontal flip, and normalize.
@@ -117,4 +118,7 @@ Here is the recall details:
     </tr>
   </tbody>
 </table>
+
+For `Cars196` and `CUB200` datasets, `20` epochs, ensemble size `12` and meta class size `12` are used. For `SOP` dataset,
+`100` epochs, ensemble size `48` and meta class size `500` is used.
 

@@ -45,9 +45,9 @@ def eval(net, data_dict, ensemble_num, recalls):
             out = F.normalize(out)
             features.append(out.cpu())
     features = torch.cat(features, 0)
-    torch.save(features, 'results/{}_test_features_{:03}.pth'.format(DATA_NAME, ensemble_num))
+    torch.save(features, 'results/{}_{}_test_features_{:03}.pth'.format(DATA_NAME, CLASSIFIER_TYPE, ensemble_num))
     # load feature vectors
-    features = [torch.load('results/{}_test_features_{:03}.pth'.format(DATA_NAME, d)) for d in
+    features = [torch.load('results/{}_{}_test_features_{:03}.pth'.format(DATA_NAME, CLASSIFIER_TYPE, d)) for d in
                 range(1, ensemble_num + 1)]
     features = torch.cat(features, 1)
     acc_list = recall(features, data_set.labels, rank=recalls)
@@ -65,11 +65,13 @@ if __name__ == '__main__':
     parser.add_argument('--num_epochs', default=12, type=int, help='train epoch number')
     parser.add_argument('--ensemble_size', default=12, type=int, help='ensemble model size')
     parser.add_argument('--meta_class_size', default=12, type=int, help='meta class size')
+    parser.add_argument('--classifier_type', default='capsule', type=str, choices=['capsule', 'linear'],
+                        help='classifier type')
 
     opt = parser.parse_args()
 
     DATA_NAME, RECALLS, BATCH_SIZE, NUM_EPOCH = opt.data_name, opt.recalls, opt.batch_size, opt.num_epochs
-    ENSEMBLE_SIZE, META_CLASS_SIZE = opt.ensemble_size, opt.meta_class_size
+    ENSEMBLE_SIZE, META_CLASS_SIZE, CLASSIFIER_TYPE = opt.ensemble_size, opt.meta_class_size, opt.classifier_type
     recall_ids = [int(k) for k in RECALLS.split(',')]
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -83,7 +85,7 @@ if __name__ == '__main__':
         print('Training ensemble #{}'.format(i))
         meta_id = create_id(META_CLASS_SIZE, len(data_dicts['train']))
         meta_data_dict = load_data(meta_id, idx_to_class, train_data)
-        model = Model(META_CLASS_SIZE).to(DEVICE)
+        model = Model(META_CLASS_SIZE, CLASSIFIER_TYPE).to(DEVICE)
         optimizer = Adam(model.parameters())
         lr_scheduler = MultiStepLR(optimizer, milestones=[int(0.5 * NUM_EPOCH), int(0.8 * NUM_EPOCH)])
         criterion = CrossEntropyLoss()
@@ -97,5 +99,5 @@ if __name__ == '__main__':
             if train_acc > best_acc:
                 best_acc = train_acc
                 best_model = copy.deepcopy(model)
-                torch.save(model.state_dict(), 'epochs/{}_model_{:03}.pth'.format(DATA_NAME, i))
+                torch.save(model.state_dict(), 'epochs/{}_{}_model_{:03}.pth'.format(DATA_NAME, CLASSIFIER_TYPE, i))
         eval(best_model, test_data, i, recall_ids)
