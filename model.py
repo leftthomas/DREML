@@ -11,7 +11,7 @@ class Model(nn.Module):
         # backbone
         basic_model, layers = resnet18(pretrained=True), []
         for name, module in basic_model.named_children():
-            if name == 'avgpool' or name == 'fc':
+            if name == 'fc':
                 continue
             layers.append(module)
         self.features = nn.Sequential(*layers)
@@ -19,10 +19,10 @@ class Model(nn.Module):
         # classifier
         self.classifier_type = classifier_type
         if self.classifier_type == 'linear':
-            self.fc = nn.Linear(8 * 8 * 512, num_class)
+            self.fc = nn.Linear(512, num_class)
         else:
-            self.in_length = 512
-            self.fc = CapsuleLinear(out_capsules=num_class, in_length=self.in_length, out_length=32, squash=False)
+            self.in_length = 16
+            self.fc = CapsuleLinear(out_capsules=num_class, in_length=self.in_length, out_length=8, squash=False)
 
     def forward(self, x):
         x = self.features(x)
