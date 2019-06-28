@@ -14,17 +14,17 @@ from model import Model
 from utils import ImageReader, create_id, get_transform, load_data, recall
 
 
-# screen python train.py --num_epochs=3 --data_name='car' --classifier_type='linear' --ensemble_size=48
+# screen python train.py --num_epochs=12 --data_name='car' --classifier_type='linear' --ensemble_size=48
 
 
 def write_csv(data, is_first_time):
     if is_first_time:
-        with open('results/result.csv', 'w', newline='') as csvfile:
+        with open('results/{}/result.csv'.format(DATA_NAME), 'w', newline='') as csvfile:
             fieldnames = ['Model', 'Epoch', 'Loss', 'Recall_1', 'Recall_2', 'Recall_4', 'Recall_8']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
     else:
-        with open('results/result.csv', 'a+', newline='') as csvfile:
+        with open('results/{}/result.csv'.format(DATA_NAME), 'a+', newline='') as csvfile:
             fieldnames = ['flag', 'epoch', 'loss', 'Recall_1', 'Recall_2', 'Recall_4', 'Recall_8']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writerow(data)
@@ -67,10 +67,11 @@ def eval(net, data_dict, ensemble_num, recalls):
             out = F.normalize(out)
             features.append(out.cpu())
     features = torch.cat(features, 0)
-    torch.save(features, 'results/{}_{}_test_features_{:03}.pth'.format(DATA_NAME, CLASSIFIER_TYPE, ensemble_num))
+    torch.save(features,
+               'results/{}/{}_{}_test_features_{:03}.pth'.format(DATA_NAME, DATA_NAME, CLASSIFIER_TYPE, ensemble_num))
     # load feature vectors
-    features = [torch.load('results/{}_{}_test_features_{:03}.pth'.format(DATA_NAME, CLASSIFIER_TYPE, d)) for d in
-                range(1, ensemble_num + 1)]
+    features = [torch.load('results/{}/{}_{}_test_features_{:03}.pth'.format(DATA_NAME, DATA_NAME, CLASSIFIER_TYPE, d))
+                for d in range(1, ensemble_num + 1)]
     features = torch.cat(features, 1)
     acc_list = recall(features, data_set.labels, rank=recalls)
     desc = ''
@@ -87,9 +88,6 @@ def eval(net, data_dict, ensemble_num, recalls):
 
 
 if __name__ == '__main__':
-    # create csv
-    write_csv(None, True)
-
     parser = argparse.ArgumentParser(description='Train Image Retrieval Model')
     parser.add_argument('--data_name', default='car', type=str, choices=['car', 'cub', 'sop'], help='dataset name')
     parser.add_argument('--recalls', default='1,2,4,8', type=str, help='selected recall')
@@ -113,9 +111,12 @@ if __name__ == '__main__':
     all_class = sorted(train_data)
     idx_to_class = {i: all_class[i] for i in range(len(all_class))}
 
-    # set visdom
-    loss_logger = VisdomPlotLogger('line', env='DCN_lsy', opts={'title': 'Loss'})
-    recall_logger = VisdomPlotLogger('line', env='DCN_lsy', opts={'title': 'Recall'})
+    # set Visdom
+    loss_logger = VisdomPlotLogger('line', env='DCN_lsy_{}'.format(DATA_NAME), opts={'title': 'Loss'})
+    recall_logger = VisdomPlotLogger('line', env='DCN_lsy_{}'.format(DATA_NAME), opts={'title': 'Recall'})
+
+    # create csv
+    write_csv(None, True)
 
     for i in range(1, ENSEMBLE_SIZE + 1):
         print('Training ensemble #{}'.format(i))
@@ -138,6 +139,7 @@ if __name__ == '__main__':
             if train_acc > best_acc:
                 best_acc = train_acc
                 best_model = copy.deepcopy(model)
-                torch.save(model.state_dict(), 'epochs/{}_{}_model_{:03}.pth'.format(DATA_NAME, CLASSIFIER_TYPE, i))
+                torch.save(model.state_dict(),
+                           'epochs/{}/{}_{}_model_{:03}.pth'.format(DATA_NAME, DATA_NAME, CLASSIFIER_TYPE, i))
         eval(best_model, test_data, i, recall_ids)
 
