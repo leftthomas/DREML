@@ -1,15 +1,11 @@
-# DCN
-A PyTorch implementation of Diverse Capsule Network based on the paper [Diverse Capsule Network for Image Retrieval]().
+# DREML
+A PyTorch implementation of DREML based on ECCV 2018 paper [Deep Randomized Ensembles for Metric Learning](https://arxiv.org/abs/1808.04469).
 
 ## Requirements
 - [Anaconda](https://www.anaconda.com/download/)
 - [PyTorch](https://pytorch.org)
 ```
 conda install pytorch torchvision -c pytorch
-```
-- capsule-layer
-```
-pip install git+https://github.com/leftthomas/CapsuleLayer.git@master
 ```
 
 ## Datasets
@@ -37,15 +33,19 @@ Adam optimizer is used with learning rate scheduling. The models are trained wit
 NVIDIA Tesla V100 (32G) GPU.
 
 The images are preprocessed with random resize, random crop, random horizontal flip, and normalize.
+
+For `Cars196` and `CUB200` datasets, `20` epochs, ensemble size `48` and meta class size `12` are used. For `SOP` dataset,
+`100` epochs, ensemble size `48` and meta class size `500` is used.
+
 Here is the recall details:
 
 <table>
   <thead>
     <tr>
       <th>Dataset</th>
-      <th>Cars196(CNN)</th>
-      <th>CUB200(CNN)</th>
-      <th>SOP(CNN)</th>
+      <th>Cars196</th>
+      <th>CUB200</th>
+      <th>SOP</th>
     </tr>
   </thead>
   <tbody>
@@ -93,7 +93,4 @@ Here is the recall details:
     </tr>
   </tbody>
 </table>
-
-For `Cars196` and `CUB200` datasets, `20` epochs, ensemble size `12` and meta class size `12` are used. For `SOP` dataset,
-`100` epochs, ensemble size `48` and meta class size `500` is used.
 
