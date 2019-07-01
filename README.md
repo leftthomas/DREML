@@ -35,7 +35,9 @@ NVIDIA Tesla V100 (32G) GPU.
 The images are preprocessed with random resize, random crop, random horizontal flip, and normalize.
 
 For `Cars196` and `CUB200` datasets, `20` epochs, ensemble size `48` and meta class size `12` are used. For `SOP` dataset,
-`100` epochs, ensemble size `48` and meta class size `500` is used.
+`50` epochs, ensemble size `16` and meta class size `500` is used.
+
+The pretrained model and test images' features can be download from [BaiduYun](https://pan.baidu.com/s/14CE3GaDN1dxnPcGPXT4YEg) (access code:2n9m).
 
 Here is the recall details:
 
@@ -51,45 +53,45 @@ Here is the recall details:
   <tbody>
     <tr>
       <td align="center">R@1</td>
-      <td align="center">81.97%</td>
-      <td align="center">54.96%</td>
-      <td align="center">56.93%</td>
+      <td align="center">84.96%</td>
+      <td align="center">63.52%</td>
+      <td align="center">73.70%</td>
     </tr>
     <tr>
       <td align="center">R@2</td>
-      <td align="center">88.27%</td>
-      <td align="center">66.41%</td>
-      <td align="center">61.68%</td>
+      <td align="center">90.74%</td>
+      <td align="center">74.46%</td>
+      <td align="center">78.57%</td>
     </tr>
     <tr>
       <td align="center">R@4</td>
-      <td align="center">92.62%</td>
-      <td align="center">76.33%</td>
-      <td align="center">66.18%</td>
+      <td align="center">94.27%</td>
+      <td align="center">82.88%</td>
+      <td align="center">82.46%</td>
     </tr>
     <tr>
       <td align="center">R@8</td>
-      <td align="center">95.28%</td>
-      <td align="center">84.60%</td>
-      <td align="center">70.08%</td>
+      <td align="center">96.70%</td>
+      <td align="center">89.01%</td>
+      <td align="center">85.56%</td>
     </tr>
     <tr>
       <td align="center">R@10</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
-      <td align="center">71.32%</td>
+      <td align="center">97.25%</td>
+      <td align="center">90.56%</td>
+      <td align="center">86.39%</td>
     </tr>
     <tr>
       <td align="center">R@100</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
-      <td align="center">82.58%</td>
+      <td align="center">99.79%</td>
+      <td align="center">98.85%</td>
+      <td align="center">92.76%</td>
     </tr>
     <tr>
       <td align="center">R@1000</td>
-      <td align="center">/</td>
-      <td align="center">/</td>
-      <td align="center">91.60%</td>
+      <td align="center">100.00%</td>
+      <td align="center">99.98%</td>
+      <td align="center">96.43%</td>
     </tr>
   </tbody>
 </table>
